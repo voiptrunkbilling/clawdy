@@ -1,0 +1,9 @@
+.build
+
+# Docker
+docker-output/
+
+# Xcode user data
+*.xcuserstate
+xcuserdata/
+.swiftpm/
