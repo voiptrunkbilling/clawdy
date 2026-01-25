@@ -36,7 +36,6 @@ actor ConnectionTestingService {
     // MARK: - Properties
     
     private let host: String
-    private let token: String?
     private let sessionKey: String
     
     // MARK: - Initialization
@@ -44,11 +43,9 @@ actor ConnectionTestingService {
     /// Create a testing service for the given gateway configuration.
     /// - Parameters:
     ///   - host: Gateway hostname or IP
-    ///   - token: Authentication token (optional, legacy - device auth uses Ed25519)
     ///   - sessionKey: Chat session key (default "main")
-    init(host: String, token: String?, sessionKey: String = "main") {
+    init(host: String, sessionKey: String = "main") {
         self.host = host
-        self.token = token
         self.sessionKey = sessionKey
     }
     

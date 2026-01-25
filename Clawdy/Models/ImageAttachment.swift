@@ -81,9 +81,12 @@ struct ImageAttachment: Identifiable, Equatable {
     
     /// JPEG quality for resized uploads
     private static let jpegUploadQuality: CGFloat = 0.85
+
+    /// Target max payload size for uploads (~350 KB)
+    private static let maxUploadBytes: Int = 350 * 1024
     
     /// Get image data for SFTP upload.
-    /// Images larger than 2048px are resized. Otherwise sent as-is.
+    /// Images larger than 2048px are resized and compressed to fit ~350 KB.
     /// Returns nil if the image cannot be loaded.
     func getDataForUpload() -> Data? {
         do {
@@ -95,33 +98,36 @@ struct ImageAttachment: Identifiable, Equatable {
             }
             
             let maxDim = max(image.size.width, image.size.height)
-            
-            // If dimensions are OK, send as-is
-            if maxDim <= Self.maxDimensionForUpload {
+            let maxBytes = Self.maxUploadBytes
+
+            if maxDim <= Self.maxDimensionForUpload && originalData.count <= maxBytes {
                 return originalData
             }
-            
-            // Need to resize
-            let scale = Self.maxDimensionForUpload / maxDim
-            let newSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-            
-            let renderer = UIGraphicsImageRenderer(size: newSize)
-            let resizedImage = renderer.image { _ in
-                image.draw(in: CGRect(origin: .zero, size: newSize))
+
+            var workingImage = image
+
+            if maxDim > Self.maxDimensionForUpload {
+                let scale = Self.maxDimensionForUpload / maxDim
+                let newSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+
+                let renderer = UIGraphicsImageRenderer(size: newSize)
+                workingImage = renderer.image { _ in
+                    image.draw(in: CGRect(origin: .zero, size: newSize))
+                }
             }
-            
-            guard let resizedData = resizedImage.jpegData(compressionQuality: Self.jpegUploadQuality) else {
-                return originalData
+
+            if let compressed = compressToTarget(workingImage, maxBytes: maxBytes) {
+                return compressed
             }
-            
-            return resizedData
+
+            return originalData
             
         } catch {
             return nil
         }
     }
     
-    /// Generate base64 data string for RPC payload (legacy, not used with SFTP upload).
+    /// Generate base64 data string for RPC payload.
     /// Returns nil if the image cannot be loaded or encoded.
     func toBase64() -> String? {
         guard let data = getDataForUpload() else {
@@ -132,6 +138,22 @@ struct ImageAttachment: Identifiable, Equatable {
         return base64
     }
     
+    private func compressToTarget(_ image: UIImage, maxBytes: Int) -> Data? {
+        let qualities: [CGFloat] = [0.85, 0.75, 0.65, 0.55, 0.45, 0.35, 0.25, 0.2]
+        var bestData: Data?
+
+        for quality in qualities {
+            if let data = image.jpegData(compressionQuality: quality) {
+                bestData = data
+                if data.count <= maxBytes {
+                    return data
+                }
+            }
+        }
+
+        return bestData
+    }
+
     /// Generate a thumbnail from the full image.
     /// Scales image to fit within thumbnailMaxSize while maintaining aspect ratio.
     /// UIGraphicsImageRenderer automatically respects UIImage's imageOrientation,

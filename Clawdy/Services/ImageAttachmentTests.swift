@@ -372,7 +372,7 @@ enum ImageAttachmentTestRunner {
             failed += 1
         }
         
-        // MARK: - Test 8: Dimensions Extraction
+        // MARK: - Test 9: Dimensions Extraction
         print("[ImageAttachmentTests] --- Dimensions Extraction ---")
         
         if let testImage = createTestImage(size: CGSize(width: 200, height: 150)),

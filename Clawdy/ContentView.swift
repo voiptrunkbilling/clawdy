@@ -6,16 +6,16 @@ struct ContentView: View {
     @StateObject private var viewModel = ClawdyViewModel()
     @StateObject private var imagePickerCoordinator = ImagePickerCoordinator()
     @State private var showingSettings = false
-    
+
     /// Focus state for text input - used to dismiss/show keyboard on mode switch
     @FocusState private var isTextFieldFocused: Bool
-    
+
     /// Selected items from PhotosPicker (processed and cleared after selection)
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
-    
+
     /// Captured image from camera (processed and cleared after capture)
     @State private var capturedImage: UIImage? = nil
-    
+
     /// Whether the app is currently offline (gateway disconnected)
     /// Note: Partial connections with chat capability are considered "online" for messaging
     private var isOffline: Bool {
@@ -27,7 +27,7 @@ struct ContentView: View {
             return false
         }
     }
-    
+
     /// Whether chat functionality is available (connected or partial with chat)
     private var canChat: Bool {
         viewModel.connectionStatus.canChat
@@ -42,7 +42,7 @@ struct ContentView: View {
                 vpnStatus: viewModel.vpnStatus,
                 onSettingsTap: { showingSettings = true }
             )
-            
+
             // Offline banner (shown when disconnected)
             if isOffline && !viewModel.isReconnecting {
                 OfflineBannerView(
@@ -57,7 +57,7 @@ struct ContentView: View {
                 )
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
-            
+
             // Reconnecting indicator (smaller, during active reconnection)
             if viewModel.isReconnecting {
                 ConnectionStatusBadge(
@@ -79,7 +79,7 @@ struct ContentView: View {
             )
 
             Spacer()
-            
+
             // Processing state indicator (thinking, tool use, responding)
             // Note: Streaming text now displays directly in TranscriptView via streamingMessage
             if viewModel.processingState.isActive {
@@ -100,10 +100,9 @@ struct ContentView: View {
                     // Voice input with mic button and keyboard toggle
                     HStack(alignment: .bottom, spacing: 16) {
                         Spacer()
-                        
+
                         MicButtonView(
                             isRecording: viewModel.isRecording,
-                            isProcessing: viewModel.isProcessing,
                             isSpeaking: viewModel.isSpeaking,
                             isGeneratingAudio: viewModel.isGeneratingAudio,
                             processingState: viewModel.processingState,
@@ -123,7 +122,7 @@ struct ContentView: View {
                                 }
                             }
                         )
-                        
+
                         // Keyboard toggle button (positioned to the right of mic)
                         VStack {
                             Spacer()
@@ -133,7 +132,7 @@ struct ContentView: View {
                             .padding(.bottom, 8)
                         }
                         .frame(height: 80)
-                        
+
                         Spacer()
                     }
                     .padding(.bottom, 40)
@@ -225,7 +224,7 @@ struct ContentView: View {
             }
         }
         // MARK: - Image Attachment Modifiers
-        
+
         // Photo library picker with dynamic max selection based on current pending count
         .photosPicker(
             isPresented: $imagePickerCoordinator.showingPhotoPicker,
@@ -356,7 +355,7 @@ struct StatusBarView: View {
 
 struct VPNStatusIndicator: View {
     let status: VPNStatus
-    /// Whether to show VPN disconnected as a warning (red). 
+    /// Whether to show VPN disconnected as a warning (red).
     /// When false and VPN is disconnected, shows neutral/gray state.
     var showWarning: Bool = true
 
@@ -386,7 +385,7 @@ struct VPNStatusIndicator: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityDescription)
     }
-    
+
     private var accessibilityDescription: String {
         switch status {
         case .connected(let interfaceName):
@@ -534,7 +533,7 @@ struct ConnectionStatusIndicator: View {
             startPulsingIfNeeded()
         }
     }
-    
+
     private var statusSubtitle: String? {
         switch status {
         case .connected(let serverName):
@@ -590,13 +589,13 @@ struct TranscriptView: View {
     let messages: [TranscriptMessage]
     /// The currently streaming message being received from the gateway (live updates)
     let streamingMessage: TranscriptMessage?
-    
+
     /// Image store for resolving image attachment IDs to actual images
     let imageStore: ImageAttachmentStore
-    
+
     /// Callback when an image thumbnail is tapped in a message (for Quick Look)
     let onImageTap: (ImageAttachment) -> Void
-    
+
     /// ID of the bottom anchor for scroll tracking
     private let bottomAnchorID = "bottom_anchor"
 
@@ -612,7 +611,7 @@ struct TranscriptView: View {
                         )
                         .id(message.id)
                     }
-                    
+
                     // Show the streaming message at the end of the list if it exists
                     // Use "streaming_" prefix to ensure different view identity from finalized messages
                     if let streaming = streamingMessage {
@@ -623,7 +622,7 @@ struct TranscriptView: View {
                         )
                         .id("streaming_\(streaming.id)")
                     }
-                    
+
                     // Invisible bottom anchor for scroll position tracking
                     Color.clear
                         .frame(height: 1)
@@ -665,10 +664,10 @@ struct TranscriptView: View {
 
 struct MessageBubble: View {
     let message: TranscriptMessage
-    
+
     /// Image store for resolving image attachment IDs to actual images
     let imageStore: ImageAttachmentStore
-    
+
     /// Callback when an image thumbnail is tapped (for Quick Look full-screen view)
     let onImageTap: (ImageAttachment) -> Void
 
@@ -689,13 +688,13 @@ struct MessageBubble: View {
                         onTap: onImageTap
                     )
                 }
-                
+
                 // Main message text
                 if !message.text.isEmpty {
                     Text(message.text)
                         .foregroundColor(message.isUser ? .white : .primary)
                 }
-                
+
                 // Inline tool calls (only for Claude's messages)
                 if !message.isUser && !message.toolCalls.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
@@ -718,27 +717,27 @@ struct MessageBubble: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
     }
-    
+
     /// Builds an accessibility label that includes message text, images, and tool call summary
     private var accessibilityLabel: String {
         var label = message.isUser ? "You said" : "Claude said"
-        
+
         // Include image count if present
         let imageCount = message.imageAttachmentIds.count
         if imageCount > 0 {
             label += " with \(imageCount) image\(imageCount == 1 ? "" : "s")"
         }
-        
+
         if !message.text.isEmpty {
             label += ": \(message.text)"
         }
-        
+
         if !message.toolCalls.isEmpty {
             let toolNames = message.toolCalls.map { $0.name }.joined(separator: ", ")
             let toolCount = message.toolCalls.count
             label += ". Used \(toolCount) tool\(toolCount == 1 ? "" : "s"): \(toolNames)"
         }
-        
+
         return label
     }
 }
@@ -750,7 +749,7 @@ struct MessageBubble: View {
 struct StreamingBorderOverlay: View {
     let isStreaming: Bool
     @State private var isPulsing = false
-    
+
     var body: some View {
         RoundedRectangle(cornerRadius: 16)
             .stroke(
@@ -781,13 +780,12 @@ struct StreamingBorderOverlay: View {
 /// changes and provides appropriate hints for available actions.
 struct MicButtonView: View {
     let isRecording: Bool
-    let isProcessing: Bool
     let isSpeaking: Bool
     let isGeneratingAudio: Bool
     let processingState: ProcessingState
     let onTap: () -> Void
     let onLongPress: () -> Void
-    
+
     @State private var isLongPressing = false
 
     var body: some View {
@@ -808,7 +806,7 @@ struct MicButtonView: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.9)))
                 .accessibilityLabel("Generating audio")
             }
-            
+
             Button(action: onTap) {
                 ZStack {
                     // Outer ring for active states
@@ -818,7 +816,7 @@ struct MicButtonView: View {
                             .frame(width: 90, height: 90)
                             .scaleEffect(isRecording ? 1.1 : 1.0)
                     }
-                    
+
                     Circle()
                         .fill(buttonColor)
                         .frame(width: 80, height: 80)
@@ -839,7 +837,6 @@ struct MicButtonView: View {
                         impactFeedback.impactOccurred()
                     }
             )
-            .disabled(isProcessing && !processingState.isActive)
             .scaleEffect(isRecording ? 1.1 : 1.0)
             .animation(.easeInOut(duration: 0.2), value: isRecording)
             .animation(.easeInOut(duration: 0.2), value: isSpeaking)
@@ -847,7 +844,7 @@ struct MicButtonView: View {
             .accessibilityLabel(micButtonAccessibilityLabel)
             .accessibilityHint(micButtonAccessibilityHint)
             .accessibilityAddTraits(.isButton)
-            
+
             // Hint text
             if processingState.isActive {
                 Text("Hold to cancel")
@@ -863,14 +860,10 @@ struct MicButtonView: View {
         }
         .accessibilityElement(children: .combine)
     }
-    
+
     // MARK: - Accessibility Helpers
-    
+
     private var micButtonAccessibilityLabel: String {
-        if isProcessing && !processingState.isActive {
-            return "Processing"
-        }
-        
         switch processingState {
         case .thinking:
             return "Claude is thinking"
@@ -881,46 +874,37 @@ struct MicButtonView: View {
         case .idle:
             break
         }
-        
+
         if isSpeaking {
             return "Speaking response"
         }
-        
+
         if isRecording {
             return "Recording"
         }
-        
+
         return "Microphone"
     }
-    
+
     private var micButtonAccessibilityHint: String {
-        if isProcessing && !processingState.isActive {
-            return "Please wait"
-        }
-        
         if processingState.isActive {
             return "Double tap to stop, or hold to cancel"
         }
-        
+
         if isSpeaking {
             return "Double tap to stop speaking"
         }
-        
+
         if isRecording {
             return "Double tap to stop recording and send"
         }
-        
+
         return "Double tap to start recording"
     }
-    
+
     @ViewBuilder
     private var buttonIcon: some View {
-        if isProcessing && !processingState.isActive {
-            // Legacy processing (non-streaming)
-            ProgressView()
-                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                .scaleEffect(1.2)
-        } else if processingState.isActive {
+        if processingState.isActive {
             // Active streaming - show processing icon
             processingIcon
         } else if isSpeaking {
@@ -934,7 +918,7 @@ struct MicButtonView: View {
             Image(systemName: "mic.fill")
         }
     }
-    
+
     @ViewBuilder
     private var processingIcon: some View {
         switch processingState {
@@ -950,10 +934,6 @@ struct MicButtonView: View {
     }
 
     private var buttonColor: Color {
-        if isProcessing && !processingState.isActive {
-            return .gray
-        }
-        
         // Color based on current state
         switch processingState {
         case .thinking:
@@ -965,11 +945,11 @@ struct MicButtonView: View {
         case .idle:
             break
         }
-        
+
         if isSpeaking {
             return .green
         }
-        
+
         return isRecording ? .red : .blue
     }
 }

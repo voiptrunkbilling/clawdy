@@ -227,7 +227,7 @@ class GatewayDualConnectionManager: ObservableObject {
         case .connected:
             guard autoConnectEnabled, !isManuallyDisconnected else { return }
             guard keychain.hasGatewayCredentials() else { return }
-            guard case .hostUnreachable = lastFailure else { return }
+            guard !status.isConnected, !isConnecting else { return }
 
             let appIsActive = UIApplication.shared.applicationState == .active
             if appIsActive {
@@ -241,7 +241,15 @@ class GatewayDualConnectionManager: ObservableObject {
             
         case .disconnected:
             pendingVPNReconnect = false
-            logger.info("VPN disconnected; connection state unchanged")
+            logger.info("VPN disconnected; attempting auto-connect if configured")
+
+            guard autoConnectEnabled, !isManuallyDisconnected else { return }
+            guard keychain.hasGatewayCredentials() else { return }
+            guard !status.isConnected, !isConnecting else { return }
+
+            Task { @MainActor in
+                await self.connectIfNeeded()
+            }
             
         case .unknown:
             break
@@ -263,7 +271,7 @@ class GatewayDualConnectionManager: ObservableObject {
 
     private func isAuthTokenMissing(for credentials: KeychainManager.GatewayCredentials) -> Bool {
         guard requiresAuthToken(for: credentials.host) else { return false }
-        let token = (credentials.authToken ?? credentials.token)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let token = credentials.authToken?.trimmingCharacters(in: .whitespacesAndNewlines)
         return token?.isEmpty ?? true
     }
 
@@ -327,7 +335,7 @@ class GatewayDualConnectionManager: ObservableObject {
             return
         }
         updateAuthTokenMissing(false)
-        
+
         await connect(credentials: credentials)
     }
     
@@ -364,7 +372,7 @@ class GatewayDualConnectionManager: ObservableObject {
             return
         }
         
-        let sharedToken = credentials.authToken ?? credentials.token
+        let sharedToken = credentials.authToken
         let deviceName = await MainActor.run { UIDevice.current.name }
         
         // Create operator connection
@@ -911,7 +919,7 @@ class GatewayDualConnectionManager: ObservableObject {
             throw GatewayError.connectionFailed("Auth token required")
         }
         updateAuthTokenMissing(false)
-        
+
         let scheme = credentials.useTLS ? "wss" : "ws"
         guard let url = URL(string: "\(scheme)://\(credentials.host):\(GATEWAY_WS_PORT)") else {
             throw GatewayError.connectionFailed("Invalid gateway URL")
@@ -934,7 +942,7 @@ class GatewayDualConnectionManager: ObservableObject {
             url: url,
             role: .operator,
             connectOptions: testOptions,
-            sharedToken: credentials.authToken ?? credentials.token,
+            sharedToken: credentials.authToken,
             autoReconnect: false
         )
         

@@ -262,7 +262,6 @@ struct TranscriptMessage: Identifiable, Equatable, Codable {
 @MainActor
 class ClawdyViewModel: ObservableObject {
     @Published var isRecording = false
-    @Published var isProcessing = false
     @Published var isSpeaking = false
     @Published var isGeneratingAudio = false
     @Published var connectionStatus: ConnectionStatus = .disconnected(reason: "Not connected") {
@@ -622,12 +621,6 @@ class ClawdyViewModel: ObservableObject {
         sendCommand(message, images: imagesToSend)
     }
     
-    /// Whether text input can be sent (connected and not processing)
-    var canSendText: Bool {
-        guard case .connected = connectionStatus else { return false }
-        return processingState == .idle && !isProcessing && !textInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-    
     // MARK: - Input Mode Persistence
     
     /// Save input mode preference to UserDefaults
@@ -892,7 +885,6 @@ class ClawdyViewModel: ObservableObject {
             interruptCurrentResponse()
         }
         
-        isProcessing = true
 
         Task {
             await sendCommandWithGateway(command, images: images)
@@ -936,8 +928,6 @@ class ClawdyViewModel: ObservableObject {
         streamingMessage = nil
         streamingResponseText = ""
         processingState = .idle
-        // Note: isProcessing will be set to true by the calling sendCommand() method
-        // as it proceeds with the new message
     }
     
     /// Save a partial streaming response with a cancellation marker.
@@ -1423,7 +1413,6 @@ class ClawdyViewModel: ObservableObject {
                 await gatewayChatClient.clearRunState()
             }
             finishGatewayResponse()
-            isProcessing = false
             
         case .agentStatus:
             break
@@ -1439,7 +1428,6 @@ class ClawdyViewModel: ObservableObject {
         if var completedMessage = streamingMessage, !completedMessage.text.isEmpty {
             // Filter out heartbeat-only responses
             if isHeartbeatOnlyResponse(completedMessage.text) {
-                isProcessing = false
                 return
             }
             
@@ -1455,8 +1443,6 @@ class ClawdyViewModel: ObservableObject {
                 addMessage(gatewayFullText, isUser: false)
             }
         }
-        
-        isProcessing = false
     }
     
     /// Handle a gateway disconnect while a response is streaming.
@@ -1473,7 +1459,6 @@ class ClawdyViewModel: ObservableObject {
         streamingMessage = nil
         streamingResponseText = ""
         processingState = .idle
-        isProcessing = false
         finishGatewayResponse()
         
         // Dual connection manager handles reconnection automatically
@@ -1506,7 +1491,6 @@ class ClawdyViewModel: ObservableObject {
                 if !images.isEmpty {
                     pendingImages = images
                 }
-                isProcessing = false
                 return
             }
         }
@@ -1555,7 +1539,6 @@ class ClawdyViewModel: ObservableObject {
             
             streamingMessage = nil
             processingState = .idle
-            isProcessing = false
         }
     }
     
@@ -1637,7 +1620,6 @@ class ClawdyViewModel: ObservableObject {
             streamingMessage = nil
             streamingResponseText = ""
             processingState = .idle
-            isProcessing = false
             isAborting = false
         }
     }

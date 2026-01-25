@@ -25,7 +25,7 @@ struct SettingsView: View {
                         .textContentType(.URL)
                         .autocapitalization(.none)
                         .autocorrectionDisabled()
-                    
+
                     SecureField("Auth Token", text: $viewModel.gatewayAuthToken)
                         .textContentType(.password)
                         .autocapitalization(.none)
@@ -35,7 +35,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Gateway")
                 } footer: {
-                    Text("Clawdbot gateway host. Use the same token as gateway.auth.token on the server.")
+                    Text("Clawdbot gateway host. Uses gateway.auth.token when no device token exists.")
                 }
                 
                 // TTS Engine Selection
@@ -1121,8 +1121,8 @@ class SettingsViewModel: ObservableObject {
         // Load Gateway credentials
         if let gatewayCredentials = keychain.loadGatewayCredentials() {
             gatewayHost = gatewayCredentials.host
-            gatewayTLS = gatewayCredentials.useTLS
             gatewayAuthToken = gatewayCredentials.authToken ?? ""
+            gatewayTLS = gatewayCredentials.useTLS
         }
     }
 
@@ -1132,7 +1132,6 @@ class SettingsViewModel: ObservableObject {
         let gatewayCredentials = KeychainManager.GatewayCredentials(
             host: gatewayHost,
             port: KeychainManager.GatewayCredentials.defaultPort,
-            token: nil,
             authToken: gatewayAuthToken.isEmpty ? nil : gatewayAuthToken,
             useTLS: gatewayTLS
         )
@@ -1157,7 +1156,6 @@ class SettingsViewModel: ObservableObject {
         let credentials = KeychainManager.GatewayCredentials(
             host: gatewayHost,
             port: KeychainManager.GatewayCredentials.defaultPort,
-            token: nil,
             authToken: gatewayAuthToken.isEmpty ? nil : gatewayAuthToken,
             useTLS: gatewayTLS
         )

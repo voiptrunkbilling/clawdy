@@ -16,8 +16,6 @@ struct ClawdyApp: App {
         SpeechSynthesizer.listAvailableVoices()
         #endif
 
-        KeychainManager.shared.cleanUpLegacyCredentialsIfNeeded()
-        
         // Warm up Kokoro TTS in the background if it's the preferred engine
         // This eliminates the delay on the first TTS request
         warmUpKokoroIfNeeded()

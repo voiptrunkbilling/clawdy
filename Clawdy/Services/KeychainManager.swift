@@ -9,21 +9,12 @@ class KeychainManager {
     private init() {}
 
     // MARK: - Keychain Keys
-    
-    // NOTE: gatewayToken and gatewayAuthToken are LEGACY for the old TCP bridge / hybrid protocol.
-    // The unified WebSocket protocol uses DeviceAuthStore for per-role device tokens instead.
-    // These legacy keys will be removed in Phase 6 cleanup of the unified WS migration.
 
     private enum KeychainKey: String {
         case gatewayHost = "com.clawdy.gateway.host"
         case gatewayPort = "com.clawdy.gateway.port"
-        case gatewayToken = "com.clawdy.gateway.token"  // LEGACY: Node/pairing token for TCP bridge
-        case gatewayAuthToken = "com.clawdy.gateway.authToken"  // LEGACY: WebSocket auth token (gateway.auth.token)
+        case gatewayAuthToken = "com.clawdy.gateway.authToken"
         case gatewayTLS = "com.clawdy.gateway.tls"
-    }
-
-    private enum UserDefaultsKey {
-        static let hasCleanedLegacyCredentials = "com.clawdy.migration.cleanedLegacyCredentials"
     }
 
     // MARK: - Gateway Credentials
@@ -32,12 +23,11 @@ class KeychainManager {
     struct GatewayCredentials {
         var host: String
         var port: Int
-        var token: String?      // Node/pairing token for TCP bridge (port 18790)
-        var authToken: String?  // WebSocket auth token for chat (port 18789) - gateway.auth.token
+        var authToken: String?
         var useTLS: Bool
 
         static var empty: GatewayCredentials {
-            GatewayCredentials(host: "", port: 18790, token: nil, authToken: nil, useTLS: false)
+            GatewayCredentials(host: "", port: 18790, authToken: nil, useTLS: false)
         }
 
         /// Default gateway port for Clawdbot node bridge (TCP)
@@ -51,11 +41,6 @@ class KeychainManager {
     func saveGatewayCredentials(_ credentials: GatewayCredentials) throws {
         try saveString(credentials.host, forKey: .gatewayHost)
         try saveString(String(credentials.port), forKey: .gatewayPort)
-        if let token = credentials.token {
-            try saveString(token, forKey: .gatewayToken)
-        } else {
-            deleteItem(forKey: .gatewayToken)
-        }
         if let authToken = credentials.authToken {
             try saveString(authToken, forKey: .gatewayAuthToken)
         } else {
@@ -72,7 +57,6 @@ class KeychainManager {
 
         let portString = getString(forKey: .gatewayPort)
         let port = portString.flatMap { Int($0) } ?? GatewayCredentials.defaultPort
-        let token = getString(forKey: .gatewayToken)
         let authToken = getString(forKey: .gatewayAuthToken)
         let tlsString = getString(forKey: .gatewayTLS)
         let useTLS = tlsString == "true"
@@ -80,7 +64,6 @@ class KeychainManager {
         return GatewayCredentials(
             host: host,
             port: port,
-            token: token,
             authToken: authToken,
             useTLS: useTLS
         )
@@ -96,7 +79,6 @@ class KeychainManager {
     func deleteGatewayCredentials() {
         deleteItem(forKey: .gatewayHost)
         deleteItem(forKey: .gatewayPort)
-        deleteItem(forKey: .gatewayToken)
         deleteItem(forKey: .gatewayAuthToken)
         deleteItem(forKey: .gatewayTLS)
     }
@@ -127,22 +109,6 @@ class KeychainManager {
         }
     }
 
-    /// LEGACY: Node/pairing token for TCP bridge connection (port 18790)
-    /// NOTE: Will be removed in Phase 6 of unified WS migration. Use DeviceAuthStore instead.
-    var gatewayToken: String? {
-        get { getString(forKey: .gatewayToken) }
-        set {
-            if let value = newValue, !value.isEmpty {
-                try? saveString(value, forKey: .gatewayToken)
-            } else {
-                deleteItem(forKey: .gatewayToken)
-            }
-        }
-    }
-    
-    /// LEGACY: WebSocket auth token for chat connection (port 18789)
-    /// This corresponds to gateway.auth.token in clawdbot config
-    /// NOTE: Will be removed in Phase 6 of unified WS migration. Use DeviceAuthStore instead.
     var gatewayAuthToken: String? {
         get { getString(forKey: .gatewayAuthToken) }
         set {
@@ -159,33 +125,6 @@ class KeychainManager {
         set {
             try? saveString(newValue ? "true" : "false", forKey: .gatewayTLS)
         }
-    }
-
-    // MARK: - Legacy Cleanup
-
-    /// Remove legacy credentials on first 2.0 launch.
-    func cleanUpLegacyCredentialsIfNeeded() {
-        let defaults = UserDefaults.standard
-        guard !defaults.bool(forKey: UserDefaultsKey.hasCleanedLegacyCredentials) else {
-            return
-        }
-
-        let legacyEncodedKeys = [
-            "Y29tLnZvaWNlcmVtb3RlLnNzaC5ob3N0",
-            "Y29tLnZvaWNlcmVtb3RlLnNzaC5wb3J0",
-            "Y29tLnZvaWNlcmVtb3RlLnNzaC51c2VybmFtZQ==",
-            "Y29tLnZvaWNlcmVtb3RlLnNzaC5wcml2YXRlS2V5",
-            "Y29tLnZvaWNlcmVtb3RlLnNzaC52YXVsdFBhdGg=",
-            "Y29tLnZvaWNlcmVtb3RlLnJwYy5zZXNzaW9uRmlsZVBhdGg="
-        ]
-
-        for encodedKey in legacyEncodedKeys {
-            if let rawKey = decodeBase64(encodedKey) {
-                deleteItem(forRawKey: rawKey)
-            }
-        }
-
-        defaults.set(true, forKey: UserDefaultsKey.hasCleanedLegacyCredentials)
     }
 
     // MARK: - Private Keychain Operations
@@ -244,12 +183,6 @@ class KeychainManager {
         SecItemDelete(query as CFDictionary)
     }
 
-    private func decodeBase64(_ value: String) -> String? {
-        guard let data = Data(base64Encoded: value) else {
-            return nil
-        }
-        return String(data: data, encoding: .utf8)
-    }
 }
 
 // MARK: - Keychain Errors
