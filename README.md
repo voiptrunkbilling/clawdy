@@ -2,6 +2,8 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+> ⚠️ **Experimental** — This app is still under active development. It has been tested and is working with Clawdbot release `2026.1.21-2`.
+
 **Clawdy** is an iOS voice interface for [Clawdbot](https://github.com/clawdbot/clawdbot). It connects via your gateway with both operator and node roles, enabling natural voice conversations with your AI assistant.
 
 ## Features
