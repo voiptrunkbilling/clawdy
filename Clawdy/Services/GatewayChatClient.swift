@@ -36,8 +36,8 @@ actor GatewayChatClient {
     /// Current run ID from the most recent send (for abort support)
     private(set) var currentRunId: String?
 
-    /// Session key to use for all chat operations (default "main").
-    private(set) var sessionKey: String = "main"
+    /// Session key to use for all chat operations (default "agent:main:main").
+    private(set) var sessionKey: String = "agent:main:main"
 
     // MARK: - Initialization
 

@@ -42,6 +42,17 @@ class IncrementalTTSManager: NSObject, ObservableObject {
     /// Task for Kokoro speech generation (for cancellation)
     private var kokoroSpeechTask: Task<Void, Never>?
     
+    // MARK: - Pipeline Parallelism (Prefetch)
+    
+    /// Pre-generated audio buffer for next sentence (reduces latency between sentences)
+    private var prefetchedAudio: AVAudioPCMBuffer?
+    
+    /// The sentence text that was prefetched (for validation)
+    private var prefetchedSentence: String?
+    
+    /// Task for prefetching next sentence's audio
+    private var prefetchTask: Task<Void, Never>?
+    
     // MARK: - Code Block Tracking
     
     /// Tracks whether we're currently inside a code block (between ``` markers).
@@ -77,10 +88,10 @@ class IncrementalTTSManager: NSObject, ObservableObject {
     
     /// Minimum words before considering a clause boundary (comma, colon, semicolon).
     /// This prevents unnatural breaks like "Sure," [pause] "I can help with that."
-    /// By requiring at least 8 words before a clause break, we ensure speech flows naturally.
-    /// Example: "Sure, I can help" (4 words) → waits for more text or sentence boundary
-    /// Example: "I've checked the configuration file, and it looks correct" (10 words) → can break at comma
-    private static let minWordsBeforeClauseBreak = 8
+    /// With pipeline parallelism (prefetch), we can afford longer segments for natural flow.
+    /// Example: "Sure, I can help with that task" (7 words) → waits for sentence boundary
+    /// Example: "I've checked the configuration file and updated the settings, and it looks correct" (13 words) → can break at comma
+    private static let minWordsBeforeClauseBreak = 12
     
     /// Minimum words that should remain after extracting a clause (orphan prevention).
     /// If breaking at a clause boundary would leave fewer than this many words in the buffer,
@@ -103,25 +114,25 @@ class IncrementalTTSManager: NSObject, ObservableObject {
     /// Minimum words before speaking a segment.
     /// Segments with fewer words than this are held for more content, unless flushed.
     /// This prevents tiny fragments like "Yes," or "Sure," from being spoken alone.
+    /// With prefetch hiding latency, we can wait for more complete segments.
     /// Example: "Yes, I can help" (4 words) → waits for sentence end or more content
-    /// Example: "I've updated the configuration file." (5 words) → speaks immediately
-    private static let minWordsForSegment = 5
+    /// Example: "I've updated the configuration file." (5 words) → still waits for more
+    /// Example: "I've updated the configuration file and restarted." (8 words) → speaks
+    private static let minWordsForSegment = 8
     
     /// Soft maximum words - after reaching this, we actively look for next boundary.
     /// When buffer exceeds this count, we prefer to break at the next available
     /// punctuation point (even clause boundaries) rather than continuing to buffer.
-    /// This balances naturalness with latency for long unpunctuated content.
-    /// Tuned to 20 (from 25) for more natural speech rhythm and reduced latency.
-    /// 20 words is roughly 10-15 seconds of speech, a comfortable listening unit.
-    private static let softMaxWords = 20
+    /// With prefetch providing smooth playback, we can use longer segments (30 words
+    /// ≈ 15-20 seconds of speech) for more natural paragraph-level phrasing.
+    private static let softMaxWords = 30
     
     /// Hard maximum words - force break at word boundary if no punctuation found.
     /// This is a safety fallback for pathological cases (completely unpunctuated text).
     /// We break at a word boundary near softMaxWords to maintain some naturalness.
-    /// Tuned to 35 (from 40) to match the reduced softMaxWords and ensure reasonable
-    /// segment sizes even for completely unpunctuated text.
-    /// Example: 35+ words with no punctuation → break after ~20 words
-    private static let hardMaxWords = 35
+    /// Increased to 45 to match the higher softMaxWords threshold.
+    /// Example: 45+ words with no punctuation → break after ~30 words
+    private static let hardMaxWords = 45
     
     // MARK: - Speech Pace Configuration
     
@@ -227,6 +238,12 @@ class IncrementalTTSManager: NSObject, ObservableObject {
         // Cancel any Kokoro speech task
         kokoroSpeechTask?.cancel()
         kokoroSpeechTask = nil
+        
+        // Cancel any prefetch task
+        prefetchTask?.cancel()
+        prefetchTask = nil
+        prefetchedAudio = nil
+        prefetchedSentence = nil
         
         // Stop system synthesizer
         systemSynthesizer.stopSpeaking(at: .immediate)
@@ -574,7 +591,7 @@ class IncrementalTTSManager: NSObject, ObservableObject {
     
     /// Speak a sentence using Kokoro neural TTS.
     /// Falls back to system TTS if Kokoro is not ready.
-    /// Speech rate is kept consistent regardless of queue size - we do NOT speed up to catch up.
+    /// Uses pipeline parallelism: plays prefetched audio if available, prefetches next sentence during playback.
     private func speakWithKokoro(_ sentence: String) {
         kokoroSpeechTask = Task { [weak self] in
             guard let self = self else { return }
@@ -600,13 +617,52 @@ class IncrementalTTSManager: NSObject, ObservableObject {
                 
                 BackgroundAudioManager.shared.audioStarted()
                 
-                // Speech rate is consistent regardless of queue depth.
-                // This maintains natural pacing; users can interrupt if they want to skip ahead.
                 let speed = voiceSettings.settings.speechRate
-                try await kokoroManager.speakText(sentence, speed: speed)
                 
-                // Brief pause between Kokoro utterances for natural pacing.
-                // This is intentionally not shortened when queue is large.
+                // Check if we have prefetched audio for this sentence (pipeline parallelism)
+                let maybePrefetched: AVAudioPCMBuffer? = await MainActor.run {
+                    if let prefetched = self.prefetchedAudio,
+                       self.prefetchedSentence == sentence {
+                        // Use prefetched audio
+                        self.prefetchedAudio = nil
+                        self.prefetchedSentence = nil
+                        return prefetched
+                    }
+                    return nil
+                }
+                
+                if let prefetchedBuffer = maybePrefetched {
+                    // Play prefetched audio - no generation wait!
+                    print("[IncrementalTTSManager] Using prefetched audio for: \(sentence.prefix(30))...")
+                    
+                    // Start prefetching next sentence before playing
+                    await MainActor.run { self.startPrefetchingNextSentence(speed: speed) }
+                    
+                    try await kokoroManager.playAudioBuffer(prefetchedBuffer)
+                } else if sentence.count > 100 {
+                    // Long sentence - use streaming to start playback sooner
+                    // Text >100 chars will be chunked, so streaming helps
+                    print("[IncrementalTTSManager] Streaming long sentence: \(sentence.prefix(30))...")
+                    
+                    // Start prefetching next sentence early (during first chunk generation)
+                    await MainActor.run { self.startPrefetchingNextSentence(speed: speed) }
+                    
+                    try await kokoroManager.speakTextStreaming(sentence, speed: speed)
+                } else {
+                    // Short sentence - generate and play (no chunking benefit from streaming)
+                    print("[IncrementalTTSManager] Generating audio on-demand for: \(sentence.prefix(30))...")
+                    
+                    // Generate audio
+                    let buffer = try await kokoroManager.generateAudio(text: sentence, speed: speed)
+                    
+                    // Start prefetching next sentence before playing
+                    await MainActor.run { self.startPrefetchingNextSentence(speed: speed) }
+                    
+                    // Play generated audio
+                    try await kokoroManager.playAudioBuffer(buffer)
+                }
+                
+                // Brief pause between Kokoro utterances for natural pacing
                 try await Task.sleep(for: .milliseconds(100))
                 
                 // On completion, speak the next sentence
@@ -632,6 +688,51 @@ class IncrementalTTSManager: NSObject, ObservableObject {
                 await MainActor.run {
                     self.speakWithSystem(sentence)
                 }
+            }
+        }
+    }
+    
+    /// Start prefetching the next sentence's audio in the background (pipeline parallelism).
+    /// Called just before playing the current sentence to overlap generation with playback.
+    @MainActor
+    private func startPrefetchingNextSentence(speed: Float) {
+        // Cancel any existing prefetch
+        prefetchTask?.cancel()
+        prefetchTask = nil
+        prefetchedAudio = nil
+        prefetchedSentence = nil
+        
+        // Check if there's a next sentence to prefetch
+        guard let nextSentence = speechQueue.first else {
+            return
+        }
+        
+        print("[IncrementalTTSManager] Prefetching next sentence: \(nextSentence.prefix(30))...")
+        
+        prefetchTask = Task { [weak self] in
+            guard let self = self else { return }
+            
+            do {
+                let buffer = try await self.kokoroManager.generateAudio(text: nextSentence, speed: speed)
+                
+                // Store prefetched audio (if not cancelled)
+                if !Task.isCancelled {
+                    await MainActor.run {
+                        // Verify the queue hasn't changed
+                        if self.speechQueue.first == nextSentence {
+                            self.prefetchedAudio = buffer
+                            self.prefetchedSentence = nextSentence
+                            print("[IncrementalTTSManager] Prefetch complete for: \(nextSentence.prefix(30))...")
+                        } else {
+                            print("[IncrementalTTSManager] Prefetch discarded (queue changed)")
+                        }
+                    }
+                }
+            } catch {
+                if !Task.isCancelled {
+                    print("[IncrementalTTSManager] Prefetch failed: \(error.localizedDescription)")
+                }
+                // Prefetch failure is not critical - will generate on-demand
             }
         }
     }

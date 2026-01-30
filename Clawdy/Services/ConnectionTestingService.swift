@@ -43,8 +43,8 @@ actor ConnectionTestingService {
     /// Create a testing service for the given gateway configuration.
     /// - Parameters:
     ///   - host: Gateway hostname or IP
-    ///   - sessionKey: Chat session key (default "main")
-    init(host: String, sessionKey: String = "main") {
+    ///   - sessionKey: Chat session key (default "agent:main:main")
+    init(host: String, sessionKey: String = "agent:main:main") {
         self.host = host
         self.sessionKey = sessionKey
     }

@@ -7,7 +7,7 @@ import Foundation
 
 let GATEWAY_PROTOCOL_VERSION = 3
 let GATEWAY_WS_PORT = 18789
-let GATEWAY_CLIENT_ID = "clawdbot-ios"  // Must match GATEWAY_CLIENT_IDS in clawdbot gateway
+let GATEWAY_CLIENT_ID = "moltbot-ios"  // Must match GATEWAY_CLIENT_IDS in clawdbot gateway
 let GATEWAY_CLIENT_MODE = "node"
 
 // MARK: - App Lifecycle Phase
@@ -121,7 +121,7 @@ public struct GatewayConnectOptions: Sendable {
         caps: [String] = [],
         commands: [String] = [],
         permissions: [String: Bool] = [:],
-        clientId: String = "clawdbot-ios",
+        clientId: String = "moltbot-ios",
         clientMode: String = "node",
         clientDisplayName: String? = nil
     ) {
@@ -151,7 +151,7 @@ public struct GatewayConnectOptions: Sendable {
             caps: [],
             commands: [],
             permissions: [:],
-            clientId: "clawdbot-ios",
+            clientId: "moltbot-ios",
             clientMode: "ui",
             clientDisplayName: displayName
         )
@@ -182,7 +182,7 @@ public struct GatewayConnectOptions: Sendable {
                 "system.notify"
             ],
             permissions: ["camera.capture": true],
-            clientId: "clawdbot-ios",
+            clientId: "moltbot-ios",
             clientMode: "node",
             clientDisplayName: displayName
         )

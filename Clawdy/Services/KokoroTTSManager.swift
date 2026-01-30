@@ -169,15 +169,20 @@ actor KokoroTTSManager {
     /// Configure MLX memory limits appropriate for iOS devices.
     /// This prevents the MLX buffer cache from growing unbounded.
     /// Note: nonisolated because it only sets static MLX properties.
+    ///
+    /// Based on community findings (mlalma/kokoro-ios issues #5, #7):
+    /// - Lower cache limit (50MB) prevents runaway buffer pool growth
+    /// - Lower memory limit (900MB) keeps iOS memory management happy
+    /// - Higher values (e.g., 1.5GB) cause crashes on iPhone 12/13/15
     nonisolated private func configureMLXMemoryLimits() {
-        // Set cache limit to 64MB - enough for efficient buffer reuse
-        // but prevents the multi-GB cache growth that can occur during inference
-        let cacheLimitMB = 64
+        // Set cache limit to 50MB - community-tested value that prevents
+        // multi-GB cache growth while allowing efficient buffer reuse
+        let cacheLimitMB = 50
         MLX.Memory.cacheLimit = cacheLimitMB * 1024 * 1024
         
-        // Set overall memory limit to 1.5GB - leaves headroom for app
-        // Default is 1.5x device recommended, which can be too high for iOS
-        let memoryLimitMB = 1500
+        // Set overall memory limit to 900MB - tested stable on iPhone 13/15
+        // Higher values (1.5GB+) cause memory pressure and crashes
+        let memoryLimitMB = 900
         MLX.Memory.memoryLimit = memoryLimitMB * 1024 * 1024
         
         print("[KokoroTTSManager] Configured MLX memory: cache=\(cacheLimitMB)MB, limit=\(memoryLimitMB)MB")
@@ -509,6 +514,28 @@ actor KokoroTTSManager {
         autoreleasepool { }
     }
     
+    /// Handle app backgrounding gracefully.
+    /// GPU work from background is NOT allowed before iOS 26 and will crash.
+    /// This method stops any in-progress generation and clears caches.
+    func handleBackgrounding() {
+        print("[KokoroTTSManager] App entering background, stopping GPU work")
+        
+        // Stop any audio playback
+        playerNode?.stop()
+        audioEngine?.stop()
+        
+        // Clear all MLX caches to free GPU memory
+        MLX.Memory.clearCache()
+        
+        // Note: We don't unload the engine here because the app might return
+        // quickly. The engine will be unloaded by:
+        // 1. The idle timeout if app stays backgrounded
+        // 2. Memory pressure handler if iOS needs the memory
+        // 3. Explicit unloadEngine() call in ClawdyApp when audio is not playing
+        
+        print("[KokoroTTSManager] Cleared GPU caches for background")
+    }
+    
     // MARK: - Storage Management
     
     /// Minimum required disk space buffer (100 MB beyond model size)
@@ -662,6 +689,9 @@ actor KokoroTTSManager {
                 return samples
             }
             
+            // Clear cache immediately after generation to free GPU memory
+            MLX.Memory.clearCache()
+            
             let buffer = try createAudioBuffer(from: audioSamples)
             print("[KokoroTTSManager] Generated \(audioSamples.count) samples")
             return buffer
@@ -693,6 +723,135 @@ actor KokoroTTSManager {
         let buffer = try createAudioBuffer(from: allSamples)
         print("[KokoroTTSManager] Generated total \(allSamples.count) samples from \(chunks.count) chunks")
         return buffer
+    }
+    
+    /// Generate audio as a stream of buffers, yielding each chunk as it's ready.
+    /// This enables playback to start before the entire text is generated.
+    /// - Parameters:
+    ///   - text: The text to synthesize
+    ///   - speed: Speech speed multiplier (1.0 = normal, >1.0 = faster)
+    /// - Returns: AsyncThrowingStream that yields audio buffers as chunks complete
+    func generateAudioStreaming(text: String, speed: Float = 1.0) -> AsyncThrowingStream<AVAudioPCMBuffer, Error> {
+        AsyncThrowingStream { continuation in
+            Task {
+                do {
+                    guard state == .ready else {
+                        continuation.finish(throwing: KokoroError.modelNotReady)
+                        return
+                    }
+                    
+                    cancelIdleUnload()
+                    try await loadEngineIfNeeded()
+                    
+                    guard let engine = ttsEngine else {
+                        continuation.finish(throwing: KokoroError.engineNotInitialized)
+                        return
+                    }
+                    
+                    guard let voiceEmbedding = voices[selectedVoiceId] else {
+                        continuation.finish(throwing: KokoroError.voiceNotFound(selectedVoiceId))
+                        return
+                    }
+                    
+                    let previousState = state
+                    state = .generating
+                    
+                    defer {
+                        state = previousState
+                        MLX.Memory.clearCache()
+                        scheduleIdleUnload()
+                    }
+                    
+                    let chunks = splitTextIntoChunks(text, maxLength: Self.maxChunkLength)
+                    print("[KokoroTTSManager] Streaming \(chunks.count) chunks for: \(text.prefix(50))...")
+                    
+                    for (index, chunk) in chunks.enumerated() {
+                        // Check for cancellation
+                        if Task.isCancelled {
+                            continuation.finish()
+                            return
+                        }
+                        
+                        let chunkSamples: [Float] = try autoreleasepool {
+                            let (samples, _) = try engine.generateAudio(
+                                voice: voiceEmbedding,
+                                language: selectedVoice.language,
+                                text: chunk,
+                                speed: speed
+                            )
+                            return samples
+                        }
+                        
+                        MLX.Memory.clearCache()
+                        
+                        let buffer = try createAudioBuffer(from: chunkSamples)
+                        print("[KokoroTTSManager] Streaming chunk \(index + 1)/\(chunks.count): \(chunkSamples.count) samples")
+                        
+                        continuation.yield(buffer)
+                    }
+                    
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+        }
+    }
+    
+    /// Speak text with streaming playback - starts playing as soon as first chunk is ready.
+    /// Schedules buffers sequentially, waiting for each to complete before scheduling the next.
+    /// - Parameters:
+    ///   - text: The text to synthesize
+    ///   - speed: Speech speed multiplier (1.0 = normal, >1.0 = faster)
+    func speakTextStreaming(_ text: String, speed: Float = 1.0) async throws {
+        // Configure audio session
+        #if os(iOS)
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setCategory(.playback, mode: .voicePrompt, options: [.duckOthers])
+            try audioSession.setActive(true)
+        } catch {
+            print("[KokoroTTSManager] Audio session error: \(error)")
+        }
+        #endif
+        
+        // Create audio engine if needed
+        if audioEngine == nil {
+            audioEngine = AVAudioEngine()
+            playerNode = AVAudioPlayerNode()
+            audioEngine?.attach(playerNode!)
+        }
+        
+        guard let engine = audioEngine, let player = playerNode else {
+            throw KokoroError.audioEngineError
+        }
+        
+        let stream = generateAudioStreaming(text: text, speed: speed)
+        var isFirstChunk = true
+        
+        for try await buffer in stream {
+            if Task.isCancelled { break }
+            
+            // Connect and start on first chunk
+            if isFirstChunk {
+                engine.connect(player, to: engine.mainMixerNode, format: buffer.format)
+                try engine.start()
+                player.play()
+                isFirstChunk = false
+            }
+            
+            // Schedule buffer and wait for completion
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                player.scheduleBuffer(buffer, at: nil, options: []) {
+                    continuation.resume()
+                }
+            }
+        }
+        
+        // Deactivate audio session
+        #if os(iOS)
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        #endif
     }
     
     /// Split text into chunks at sentence boundaries, respecting max length.
@@ -907,8 +1066,9 @@ actor KokoroTTSManager {
         return buffer
     }
     
-    /// Play an audio buffer
-    private func playAudioBuffer(_ buffer: AVAudioPCMBuffer) async throws {
+    /// Play an audio buffer.
+    /// Exposed for pipeline parallelism - allows IncrementalTTSManager to play prefetched buffers.
+    func playAudioBuffer(_ buffer: AVAudioPCMBuffer) async throws {
         // Configure audio session
         #if os(iOS)
         do {

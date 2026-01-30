@@ -197,7 +197,7 @@ class GatewayDualConnectionManager: ObservableObject {
     var onChatEvent: (@Sendable (GatewayChatEvent) -> Void)?
     
     /// Session key for chat events
-    var chatSessionKey: String = "main"
+    var chatSessionKey: String = "agent:main:main"
     
     /// Callback for when app returns to foreground while still connected
     var onDidBecomeActiveWhileConnected: (() -> Void)?

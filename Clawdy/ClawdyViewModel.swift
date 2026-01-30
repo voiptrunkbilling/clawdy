@@ -1371,9 +1371,8 @@ class ClawdyViewModel: ObservableObject {
                     streamingResponseText = finalText
                     ensureGatewayStreamingMessage()
                     streamingMessage?.text = finalText
-                    if inputMode == .voice {
-                        incrementalTTS.appendText(finalText)
-                    }
+                    // Don't append finalText to TTS - streaming deltas already sent the text.
+                    // The flush() below will speak any remaining buffered content.
                 }
             }
             if inputMode == .voice && !isHeartbeat {

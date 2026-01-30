@@ -54,6 +54,12 @@ struct ClawdyApp: App {
         
         switch phase {
         case .background:
+            // Handle Kokoro backgrounding first - stop GPU work to prevent crashes
+            // GPU work from background is NOT allowed before iOS 26
+            Task {
+                await KokoroTTSManager.shared.handleBackgrounding()
+            }
+            
             // Only lock app when entering background if audio is not playing
             // This allows TTS to continue in background until complete
             if backgroundAudioManager.shouldLockOnBackground {
@@ -100,11 +106,11 @@ struct ClawdyApp: App {
                 return
             }
             
-            // Warm up WITHOUT inference to avoid memory spike on launch.
-            // This loads the model/voices but doesn't run the neural network.
-            // First actual TTS request will be slightly slower but avoids
-            // the memory peak that can trigger jetsam on iOS.
-            let success = await manager.warmUp(runInference: false)
+            // Warm up WITH inference to fully prime the neural network.
+            // With optimized MLX memory limits (50MB cache, 900MB limit), this is
+            // now safe to run on launch. The first TTS request will be much faster
+            // since all lazy MLX operations are already initialized.
+            let success = await manager.warmUp(runInference: true)
             
             if success {
                 print("[ClawdyApp] Kokoro TTS warmed up (model loaded, inference deferred)")
