@@ -118,6 +118,9 @@ class GatewayDualConnectionManager: ObservableObject {
     /// Server name from the operator connection (if connected)
     @Published public private(set) var serverName: String?
     
+    /// Gateway info from the operator connection (if connected)
+    @Published public private(set) var gatewayInfo: GatewayInfo?
+    
     /// Whether auto-connect is enabled
     @Published public var autoConnectEnabled: Bool = true
 
@@ -361,11 +364,11 @@ class GatewayDualConnectionManager: ObservableObject {
             status = .connecting
         }
         
-        logger.info("Connecting to \(credentials.host) with dual connections")
+        logger.info("Connecting to \(credentials.host):\(credentials.port) with dual connections")
         
-        // Build WebSocket URL
+        // Build WebSocket URL with custom port
         let scheme = credentials.useTLS ? "wss" : "ws"
-        guard let url = URL(string: "\(scheme)://\(credentials.host):\(GATEWAY_WS_PORT)") else {
+        guard let url = URL(string: "\(scheme)://\(credentials.host):\(credentials.port)") else {
             status = .disconnected
             isConnecting = false
             logger.error("Invalid gateway URL")
@@ -699,6 +702,15 @@ class GatewayDualConnectionManager: ObservableObject {
                 logger.info("Operator snapshot: \(payload.serverName)")
             }
             
+            // Fetch and store gateway info from the connection
+            if let connection = operatorConnection,
+               let info = await connection.currentGatewayInfo() {
+                await MainActor.run {
+                    gatewayInfo = info
+                    logger.info("Gateway info: protocol v\(info.protocolVersion), server v\(info.serverVersion ?? "unknown")")
+                }
+            }
+            
         case .event(let event):
             await handleChatEvent(event)
             
@@ -801,6 +813,7 @@ class GatewayDualConnectionManager: ObservableObject {
         operatorBackoffMs = 500
         nodeBackoffMs = 500
         serverName = nil
+        gatewayInfo = nil
         status = .disconnected
         
         logger.info("Disconnected both connections")
@@ -822,6 +835,7 @@ class GatewayDualConnectionManager: ObservableObject {
         operatorBackoffMs = 500
         nodeBackoffMs = 500
         serverName = nil
+        gatewayInfo = nil
         status = .disconnected
         
         logger.info("Disconnected gracefully: \(reason)")
@@ -909,7 +923,8 @@ class GatewayDualConnectionManager: ObservableObject {
     // MARK: - Connection Testing
     
     /// Test connection to gateway with given credentials.
-    func testConnection(credentials: KeychainManager.GatewayCredentials) async throws -> String {
+    /// Returns detailed result including latency and protocol info.
+    func testConnection(credentials: KeychainManager.GatewayCredentials) async throws -> ConnectionTestResult {
         guard vpnMonitor.status.isConnected else {
             throw GatewayError.vpnNotConnected
         }
@@ -919,9 +934,15 @@ class GatewayDualConnectionManager: ObservableObject {
             throw GatewayError.connectionFailed("Auth token required")
         }
         updateAuthTokenMissing(false)
+        
+        // Validate URL first
+        let validationResult = credentials.validate()
+        if !validationResult.isValid, let error = validationResult.error {
+            throw GatewayError.invalidURL(reason: error.errorDescription ?? "Invalid URL")
+        }
 
         let scheme = credentials.useTLS ? "wss" : "ws"
-        guard let url = URL(string: "\(scheme)://\(credentials.host):\(GATEWAY_WS_PORT)") else {
+        guard let url = URL(string: "\(scheme)://\(credentials.host):\(credentials.port)") else {
             throw GatewayError.connectionFailed("Invalid gateway URL")
         }
         
@@ -959,6 +980,9 @@ class GatewayDualConnectionManager: ObservableObject {
             }
         }
         
+        // Measure connection latency
+        let startTime = Date()
+        
         let testTask = Task {
             try await testConnection.connect()
         }
@@ -977,17 +1001,27 @@ class GatewayDualConnectionManager: ObservableObject {
         }
         
         try await testTask.value
-        try await Task.sleep(nanoseconds: 1_000_000_000)
         
-        if let name = await serverNameHolder.get() {
-            return name
+        // Calculate latency
+        let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
+        
+        // Wait briefly for snapshot to arrive
+        try await Task.sleep(nanoseconds: 500_000_000)
+        
+        // Get gateway info from test connection
+        let info = await testConnection.currentGatewayInfo()
+        let serverName = info?.serverName ?? await serverNameHolder.get() ?? "Gateway"
+        
+        guard await testConnection.isConnected else {
+            throw GatewayError.connectionFailed("Could not establish connection")
         }
         
-        if await testConnection.isConnected {
-            return "Gateway"
-        }
-        
-        throw GatewayError.connectionFailed("Could not establish connection")
+        return ConnectionTestResult(
+            serverName: serverName,
+            protocolVersion: info?.protocolVersion ?? GATEWAY_PROTOCOL_VERSION,
+            latencyMs: latencyMs,
+            gatewayInfo: info
+        )
     }
     
     // MARK: - App Lifecycle

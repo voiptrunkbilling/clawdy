@@ -69,6 +69,7 @@ actor GatewayConnection {
     private var watchdogTask: Task<Void, Never>?
     private var tickTask: Task<Void, Never>?
     private var canvasHostUrl: String?
+    private var gatewayInfo: GatewayInfo?
     
     // MARK: - Constants
     
@@ -153,6 +154,11 @@ actor GatewayConnection {
     /// Current canvas host URL from gateway.
     func currentCanvasHostUrl() -> String? {
         canvasHostUrl
+    }
+    
+    /// Current gateway info (available after successful connection).
+    func currentGatewayInfo() -> GatewayInfo? {
+        gatewayInfo
     }
     
     /// Current remote address.
@@ -476,6 +482,8 @@ actor GatewayConnection {
         if let ok = res["ok"] as? Bool, !ok {
             let errorDict = res["error"] as? [String: Any]
             let msg = (errorDict?["message"] as? String) ?? "gateway connect failed"
+            let code = errorDict?["code"] as? String
+            let details = errorDict?["details"] as? [String: Any]
             let lowercased = msg.lowercased()
 
             // Check for pairing required error
@@ -485,9 +493,34 @@ actor GatewayConnection {
             } else if lowercased.contains("auth") || lowercased.contains("token") || lowercased.contains("unauthorized") || lowercased.contains("forbidden") {
                 logger.error("[\(self.role.rawValue)] auth failure: \(msg, privacy: .public)")
                 throw ConnectFailure.authFailure(msg)
+            } else if lowercased.contains("protocol") || code == "PROTOCOL_MISMATCH" {
+                // Extract protocol version info from error details
+                let serverMinVersion = details?["minProtocol"] as? Int ?? 0
+                let serverMaxVersion = details?["maxProtocol"] as? Int ?? 0
+                logger.error("[\(self.role.rawValue)] protocol mismatch: client=\(GATEWAY_PROTOCOL_VERSION), server=\(serverMinVersion)-\(serverMaxVersion)")
+                throw GatewayError.protocolMismatch(
+                    clientVersion: GATEWAY_PROTOCOL_VERSION,
+                    serverMinVersion: serverMinVersion,
+                    serverMaxVersion: serverMaxVersion
+                )
             }
             
-            throw NSError(domain: "Gateway", code: 1008, userInfo: [NSLocalizedDescriptionKey: msg])
+            // Build structured error with code, message, and serialized details
+            var detailsWithSerialized = details ?? [:]
+            if let details = details, !details.isEmpty {
+                if let detailsJSON = try? JSONSerialization.data(withJSONObject: details, options: []),
+                   let detailsString = String(data: detailsJSON, encoding: .utf8) {
+                    logger.debug("[\(self.role.rawValue)] error details: \(detailsString, privacy: .public)")
+                    detailsWithSerialized["_serialized"] = detailsString
+                }
+            }
+            
+            throw GatewayResponseError(
+                method: "connect",
+                code: code,
+                message: msg,
+                details: detailsWithSerialized
+            )
         }
         
         guard let payload = res["payload"] as? [String: Any] else {
@@ -497,8 +530,25 @@ actor GatewayConnection {
                 userInfo: [NSLocalizedDescriptionKey: "connect failed (missing payload)"])
         }
         
+        // Extract and validate protocol version
+        let serverMinProtocol = payload["minProtocol"] as? Int ?? GATEWAY_PROTOCOL_VERSION
+        let serverMaxProtocol = payload["maxProtocol"] as? Int ?? GATEWAY_PROTOCOL_VERSION
+        let negotiatedProtocol = payload["protocol"] as? Int ?? serverMaxProtocol
+        
+        // Check protocol compatibility
+        if GATEWAY_PROTOCOL_VERSION < serverMinProtocol || GATEWAY_PROTOCOL_VERSION > serverMaxProtocol {
+            logger.error("[\(self.role.rawValue)] protocol version mismatch: client=\(GATEWAY_PROTOCOL_VERSION), server supports \(serverMinProtocol)-\(serverMaxProtocol)")
+            throw GatewayError.protocolMismatch(
+                clientVersion: GATEWAY_PROTOCOL_VERSION,
+                serverMinVersion: serverMinProtocol,
+                serverMaxVersion: serverMaxProtocol
+            )
+        }
+        
         // Extract server info
         let serverName = payload["serverName"] as? String ?? "Gateway"
+        let serverVersion = payload["serverVersion"] as? String
+        let uptimeSeconds = payload["uptimeSeconds"] as? Int ?? (payload["uptime"] as? Int)
         canvasHostUrl = (payload["canvasHostUrl"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         if canvasHostUrl?.isEmpty == true { canvasHostUrl = nil }
         
@@ -509,6 +559,21 @@ actor GatewayConnection {
         } else if let tick = policy["tickIntervalMs"] as? Int {
             tickIntervalMs = Double(tick)
         }
+        
+        // Build and store gateway info
+        gatewayInfo = GatewayInfo(
+            serverName: serverName,
+            protocolVersion: negotiatedProtocol,
+            minProtocolVersion: serverMinProtocol,
+            maxProtocolVersion: serverMaxProtocol,
+            uptimeSeconds: uptimeSeconds,
+            serverVersion: serverVersion,
+            canvasHostUrl: canvasHostUrl,
+            tickIntervalMs: tickIntervalMs,
+            connectedAt: Date()
+        )
+        
+        logger.info("[\(self.role.rawValue)] connected to \(serverName, privacy: .public) (protocol v\(negotiatedProtocol), server v\(serverVersion ?? "unknown", privacy: .public))")
         
         // Store device token if issued
         if let auth = payload["auth"] as? [String: Any],
@@ -567,13 +632,82 @@ actor GatewayConnection {
     }
     
     private func handleReceiveFailure(_ err: Error) async {
-        let wrapped = wrap(err, context: "gateway receive")
-        logger.error("[\(self.role.rawValue)] ws receive failed: \(wrapped.localizedDescription, privacy: .public)")
-        await updateState(.failed(reason: wrapped.localizedDescription))
-        await disconnectHandler?("receive failed: \(wrapped.localizedDescription)")
-        await failPending(wrapped)
+        // Extract WebSocket close code if available
+        let (closeCode, closeReason) = extractWebSocketCloseInfo(from: err)
+        
+        var failureMessage: String
+        if let closeCode = closeCode {
+            let wsCode = WebSocketCloseCode(rawValue: closeCode)
+            let codeDescription = wsCode?.description ?? "Unknown close code \(closeCode)"
+            
+            if let reason = closeReason, !reason.isEmpty {
+                failureMessage = "\(codeDescription): \(reason)"
+            } else {
+                failureMessage = codeDescription
+            }
+            
+            // Log special handling for certain codes
+            if wsCode?.isAuthError == true {
+                logger.error("[\(self.role.rawValue)] policy violation - authentication may have expired")
+            }
+            
+            // Check if we should retry based on close code
+            if wsCode?.shouldRetry == false && wsCode != nil {
+                logger.warning("[\(self.role.rawValue)] close code \(closeCode) suggests not retrying immediately")
+            }
+        } else {
+            let wrapped = wrap(err, context: "gateway receive")
+            failureMessage = wrapped.localizedDescription
+        }
+        
+        logger.error("[\(self.role.rawValue)] ws receive failed: \(failureMessage, privacy: .public)")
+        await updateState(.failed(reason: failureMessage))
+        await disconnectHandler?("receive failed: \(failureMessage)")
+        await failPending(NSError(domain: "Gateway", code: closeCode ?? 0, userInfo: [NSLocalizedDescriptionKey: failureMessage]))
+        
+        // Only auto-reconnect if the close code suggests we should
         if allowAutoReconnect {
-            await scheduleReconnect()
+            let wsCode = closeCode.flatMap { WebSocketCloseCode(rawValue: $0) }
+            if wsCode?.shouldRetry != false {
+                await scheduleReconnect()
+            } else {
+                logger.info("[\(self.role.rawValue)] not auto-reconnecting due to close code \(closeCode ?? 0)")
+            }
+        }
+    }
+    
+    /// Extract WebSocket close code and reason from an error.
+    private nonisolated func extractWebSocketCloseInfo(from error: Error) -> (code: Int?, reason: String?) {
+        // Check for URLSession WebSocket close error
+        let nsError = error as NSError
+        
+        // URLSession WebSocket errors may contain close code in userInfo
+        if nsError.domain == NSURLErrorDomain {
+            // The close code might be in the underlying error
+            if let underlyingError = nsError.userInfo[NSUnderlyingErrorKey] as? NSError {
+                // Check for POSIXErrorCode or WebSocket-specific codes
+                if underlyingError.domain == "NWError" || underlyingError.domain == "kNWErrorDomainPOSIX" {
+                    // Network-level errors
+                    return (nsError.code, nsError.localizedDescription)
+                }
+            }
+        }
+        
+        // Check for WebSocket protocol close frame
+        // Note: URLSessionWebSocketTask doesn't expose close code directly,
+        // but we can infer from error codes
+        switch nsError.code {
+        case -1005: // Connection lost
+            return (WebSocketCloseCode.abnormalClosure.rawValue, "Connection lost")
+        case -1001: // Timeout
+            return (WebSocketCloseCode.abnormalClosure.rawValue, "Connection timed out")
+        case -1009: // No internet
+            return (WebSocketCloseCode.abnormalClosure.rawValue, "No internet connection")
+        case 57: // Socket not connected
+            return (WebSocketCloseCode.goingAway.rawValue, "Socket disconnected")
+        default:
+            // Return nil for close code, let caller use localizedDescription
+            return (nil, nil)
         }
     }
     

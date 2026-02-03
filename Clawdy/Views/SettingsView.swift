@@ -25,6 +25,33 @@ struct SettingsView: View {
                         .textContentType(.URL)
                         .autocapitalization(.none)
                         .autocorrectionDisabled()
+                        .onChange(of: viewModel.gatewayHost) { _, _ in
+                            viewModel.validateConnectionURL()
+                        }
+                    
+                    // Port field with validation
+                    HStack {
+                        Text("Port")
+                        Spacer()
+                        TextField("Port", text: $viewModel.gatewayPortString)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                            .onChange(of: viewModel.gatewayPortString) { _, _ in
+                                viewModel.validateConnectionURL()
+                            }
+                    }
+                    
+                    // Show validation error inline
+                    if let validationError = viewModel.urlValidationError {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                            Text(validationError)
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
+                    }
 
                     SecureField("Auth Token", text: $viewModel.gatewayAuthToken)
                         .textContentType(.password)
@@ -32,10 +59,13 @@ struct SettingsView: View {
                         .autocorrectionDisabled()
 
                     Toggle("Use TLS", isOn: $viewModel.gatewayTLS)
+                        .onChange(of: viewModel.gatewayTLS) { _, _ in
+                            viewModel.validateConnectionURL()
+                        }
                 } header: {
                     Text("Gateway")
                 } footer: {
-                    Text("Clawdbot gateway host. Uses gateway.auth.token when no device token exists.")
+                    Text("Clawdbot gateway host and port. Default port is \(GATEWAY_WS_PORT). Uses gateway.auth.token when no device token exists.")
                 }
                 
                 // TTS Engine Selection
@@ -150,6 +180,11 @@ struct SettingsView: View {
                 
                 // Connection & Pairing Status
                 Section {
+                    // Gateway info (shown when connected)
+                    if let gatewayInfo = viewModel.gatewayInfo {
+                        GatewayInfoView(info: gatewayInfo)
+                    }
+                    
                     // Operator role status
                     HStack {
                         RolePairingStatusIcon(status: viewModel.operatorPairingStatus)
@@ -424,6 +459,77 @@ struct RolePairingStatusIcon: View {
             Image(systemName: "checkmark.circle.fill")
                 .foregroundColor(.green)
         }
+    }
+}
+
+// MARK: - Gateway Info View
+
+/// Displays gateway server information after successful connection
+struct GatewayInfoView: View {
+    let info: GatewayInfo
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Server name and version
+            HStack {
+                Image(systemName: "server.rack")
+                    .foregroundColor(.green)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(info.serverName)
+                        .fontWeight(.medium)
+                    if let serverVersion = info.serverVersion {
+                        Text("v\(serverVersion)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                Spacer()
+            }
+            
+            // Connection details
+            HStack(spacing: 16) {
+                // Protocol version
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Protocol")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Text(info.protocolDescription)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
+                
+                // Uptime
+                if let uptime = info.formattedUptime {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Uptime")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text(uptime)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                    }
+                }
+                
+                // Connection time
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Connected")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Text(connectionTimeText)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
+                
+                Spacer()
+            }
+        }
+        .padding(.vertical, 4)
+    }
+    
+    private var connectionTimeText: String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: info.connectedAt, relativeTo: Date())
     }
 }
 
@@ -935,8 +1041,12 @@ struct KokoroVoiceRow: View {
 class SettingsViewModel: ObservableObject {
     // Gateway Settings
     @Published var gatewayHost: String = ""
+    @Published var gatewayPortString: String = ""
     @Published var gatewayAuthToken: String = ""
     @Published var gatewayTLS: Bool = false
+    
+    // URL Validation
+    @Published var urlValidationError: String?
 
     @Published var showingClearConfirmation = false
     @Published var showingClearContextConfirmation = false
@@ -956,6 +1066,10 @@ class SettingsViewModel: ObservableObject {
     @Published var operatorPairingStatus: RolePairingStatus = .unknown
     @Published var nodePairingStatus: RolePairingStatus = .unknown
     private var connectionStatusObserver: AnyCancellable?
+    private var gatewayInfoObserver: AnyCancellable?
+    
+    // Gateway info from connection
+    @Published var gatewayInfo: GatewayInfo?
     
     /// Per-role pairing status
     enum RolePairingStatus: Equatable {
@@ -1011,6 +1125,7 @@ class SettingsViewModel: ObservableObject {
     init() {
         loadCredentials()
         setupConnectionStatusObserver()
+        setupGatewayInfoObserver()
         checkPairingStatus()
     }
     
@@ -1019,6 +1134,14 @@ class SettingsViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] status in
                 self?.updatePairingStatusFromConnection(status)
+            }
+    }
+    
+    private func setupGatewayInfoObserver() {
+        gatewayInfoObserver = GatewayDualConnectionManager.shared.$gatewayInfo
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] info in
+                self?.gatewayInfo = info
             }
     }
     
@@ -1074,15 +1197,46 @@ class SettingsViewModel: ObservableObject {
     }
 
     var canSave: Bool {
-        !gatewayHost.isEmpty
+        !gatewayHost.isEmpty && urlValidationError == nil
     }
 
     var canTestGateway: Bool {
-        !gatewayHost.isEmpty
+        !gatewayHost.isEmpty && urlValidationError == nil
     }
     
     var canStartPairing: Bool {
-        !gatewayHost.isEmpty && !isPairingPending
+        !gatewayHost.isEmpty && !isPairingPending && urlValidationError == nil
+    }
+    
+    /// Validate the current connection URL settings
+    func validateConnectionURL() {
+        let trimmedHost = gatewayHost.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Empty host is not an error (just means save is disabled)
+        guard !trimmedHost.isEmpty else {
+            urlValidationError = nil
+            return
+        }
+        
+        // Validate port string
+        let (port, portError) = URLValidator.validatePortString(gatewayPortString)
+        if let portError = portError {
+            urlValidationError = portError.shortDescription
+            return
+        }
+        
+        // Validate the full URL
+        let result = URLValidator.validate(
+            hostname: trimmedHost,
+            port: port ?? GATEWAY_WS_PORT,
+            useTLS: gatewayTLS
+        )
+        
+        if !result.isValid, let error = result.error {
+            urlValidationError = error.shortDescription
+        } else {
+            urlValidationError = nil
+        }
     }
     
     /// Start the pairing process by connecting to the gateway
@@ -1121,24 +1275,35 @@ class SettingsViewModel: ObservableObject {
         // Load Gateway credentials
         if let gatewayCredentials = keychain.loadGatewayCredentials() {
             gatewayHost = gatewayCredentials.host
+            gatewayPortString = gatewayCredentials.port != GATEWAY_WS_PORT ? String(gatewayCredentials.port) : ""
             gatewayAuthToken = gatewayCredentials.authToken ?? ""
             gatewayTLS = gatewayCredentials.useTLS
         }
+        
+        // Load current gateway info if connected
+        gatewayInfo = GatewayDualConnectionManager.shared.gatewayInfo
+        
+        // Validate URL on initial load
+        validateConnectionURL()
     }
 
     /// Save credentials to Keychain
     func save() {
-        // Save Gateway credentials (host and TLS only - auth uses device identity)
+        // Parse port from string
+        let (port, _) = URLValidator.validatePortString(gatewayPortString)
+        let effectivePort = port ?? GATEWAY_WS_PORT
+        
+        // Save Gateway credentials (host, port, TLS, and auth token)
         let gatewayCredentials = KeychainManager.GatewayCredentials(
             host: gatewayHost,
-            port: KeychainManager.GatewayCredentials.defaultPort,
+            port: effectivePort,
             authToken: gatewayAuthToken.isEmpty ? nil : gatewayAuthToken,
             useTLS: gatewayTLS
         )
         
         do {
             try keychain.saveGatewayCredentials(gatewayCredentials)
-            print("[Settings] Gateway credentials saved successfully")
+            print("[Settings] Gateway credentials saved successfully (port: \(effectivePort))")
         } catch {
             print("[Settings] Failed to save Gateway credentials: \(error)")
         }
@@ -1152,17 +1317,43 @@ class SettingsViewModel: ObservableObject {
         // Save credentials first
         save()
 
+        // Parse port from string
+        let (port, _) = URLValidator.validatePortString(gatewayPortString)
+        let effectivePort = port ?? GATEWAY_WS_PORT
+
         // Build credentials for test
         let credentials = KeychainManager.GatewayCredentials(
             host: gatewayHost,
-            port: KeychainManager.GatewayCredentials.defaultPort,
+            port: effectivePort,
             authToken: gatewayAuthToken.isEmpty ? nil : gatewayAuthToken,
             useTLS: gatewayTLS
         )
         
         do {
-            let serverName = try await GatewayDualConnectionManager.shared.testConnection(credentials: credentials)
-            gatewayTestResult = TestResult(success: true, message: "Connected to \(serverName)")
+            let result = try await GatewayDualConnectionManager.shared.testConnection(credentials: credentials)
+            gatewayTestResult = TestResult(success: true, message: "Connected to \(result.serverName) (\(result.summary))")
+        } catch let error as GatewayError {
+            // Handle specific gateway errors with better messages
+            switch error {
+            case .protocolMismatch(_, _, _):
+                gatewayTestResult = TestResult(success: false, message: error.errorDescription ?? "Protocol mismatch")
+            case .invalidURL(let reason):
+                gatewayTestResult = TestResult(success: false, message: "Invalid URL: \(reason)")
+            case .policyViolation(let reason):
+                gatewayTestResult = TestResult(success: false, message: "Access denied: \(reason)")
+            default:
+                gatewayTestResult = TestResult(success: false, message: error.localizedDescription)
+            }
+        } catch let error as GatewayResponseError {
+            // Surface gateway-provided error details to the user
+            var message = error.message ?? "Request failed"
+            if let code = error.code {
+                message = "[\(code)] \(message)"
+            }
+            if let serialized = error.details["_serialized"] as? String {
+                message += " (\(serialized))"
+            }
+            gatewayTestResult = TestResult(success: false, message: message)
         } catch {
             gatewayTestResult = TestResult(success: false, message: error.localizedDescription)
         }
@@ -1175,9 +1366,11 @@ class SettingsViewModel: ObservableObject {
         // Clear Gateway credentials
         keychain.deleteGatewayCredentials()
         gatewayHost = ""
+        gatewayPortString = ""
         gatewayAuthToken = ""
         gatewayTLS = false
         gatewayTestResult = nil
+        urlValidationError = nil
     }
     
     /// Clear device identity and tokens for fresh pairing test
