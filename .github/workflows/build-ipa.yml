@@ -1,0 +1,43 @@
+name: Build Unsigned IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Select Xcode version
+      run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
+      
+    - name: Build for iOS
+      run: |
+        xcodebuild -project Clawdy.xcodeproj \
+          -scheme Clawdy \
+          -configuration Release \
+          -destination 'generic/platform=iOS' \
+          -archivePath $PWD/build/Clawdy.xcarchive \
+          archive \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO
+    
+    - name: Export unsigned IPA
+      run: |
+        mkdir -p Payload
+        cp -r build/Clawdy.xcarchive/Products/Applications/Clawdy.app Payload/
+        zip -r Clawdy-unsigned.ipa Payload
+        rm -rf Payload
+    
+    - name: Upload IPA artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Clawdy-unsigned-ipa
+        path: Clawdy-unsigned.ipa
+        retention-days: 7
