@@ -1,14 +1,154 @@
 import SwiftUI
 import UIKit
+import UserNotifications
+
+// MARK: - App Delegate for APNs
+
+/// UIApplicationDelegate for handling APNs registration and remote notifications.
+/// SwiftUI requires a delegate adaptor for push notification support.
+class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+    
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        // Set up notification delegate before requesting permissions
+        UNUserNotificationCenter.current().delegate = self
+        
+        // Initialize APNs manager
+        Task { @MainActor in
+            APNsManager.shared.applicationDidFinishLaunching()
+        }
+        
+        return true
+    }
+    
+    // MARK: - APNs Registration
+    
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        Task { @MainActor in
+            APNsManager.shared.didRegisterForRemoteNotifications(withDeviceToken: deviceToken)
+        }
+    }
+    
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        Task { @MainActor in
+            APNsManager.shared.didFailToRegisterForRemoteNotifications(withError: error)
+        }
+    }
+    
+    // MARK: - Remote Notification Handling
+    
+    func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        Task { @MainActor in
+            APNsManager.shared.handleRemoteNotification(userInfo: userInfo, completionHandler: completionHandler)
+        }
+    }
+    
+    // MARK: - UNUserNotificationCenterDelegate
+    
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        // For remote notifications, check if it's a chat notification
+        let userInfo = notification.request.content.userInfo
+        if userInfo["aps"] != nil {
+            // This is a remote notification
+            // Show it as a banner even in foreground for important messages
+            let clawdy = userInfo["clawdy"] as? [String: Any] ?? [:]
+            if clawdy["sessionKey"] != nil {
+                // Agent message - show in foreground
+                completionHandler([.banner, .sound])
+                return
+            }
+        }
+        
+        // For local notifications, defer to NotificationManager's behavior
+        // Check category to determine if we should show
+        let category = notification.request.content.categoryIdentifier
+        if category == NotificationManager.chatPushCategory {
+            // Don't show local chat notifications in foreground
+            completionHandler([])
+        } else {
+            // Show other notifications
+            completionHandler([.banner, .sound, .badge])
+        }
+    }
+    
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let userInfo = response.notification.request.content.userInfo
+        
+        // Check if this is a remote notification
+        if userInfo["aps"] != nil {
+            // Handle remote notification tap
+            let clawdy = userInfo["clawdy"] as? [String: Any] ?? [:]
+            if let sessionKey = clawdy["sessionKey"] as? String {
+                // Post notification to navigate to the session
+                NotificationCenter.default.post(
+                    name: .apnsNotificationTapped,
+                    object: nil,
+                    userInfo: ["sessionKey": sessionKey]
+                )
+            }
+            completionHandler()
+            return
+        }
+        
+        // Handle local notification actions (e.g., reply)
+        if response.actionIdentifier == NotificationManager.replyAction,
+           let textResponse = response as? UNTextInputNotificationResponse {
+            let replyText = textResponse.userText
+            print("[AppDelegate] User replied: \(replyText)")
+            
+            NotificationCenter.default.post(
+                name: .chatPushReplyReceived,
+                object: nil,
+                userInfo: ["text": replyText]
+            )
+        }
+        
+        completionHandler()
+    }
+}
+
+// MARK: - Additional Notification Names
+
+extension Notification.Name {
+    /// Posted when user taps a remote push notification.
+    /// userInfo contains "sessionKey" key.
+    static let apnsNotificationTapped = Notification.Name("apnsNotificationTapped")
+}
 
 @main
 struct ClawdyApp: App {
+    // Connect the app delegate for APNs support
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    
     @StateObject private var authManager = AuthenticationManager.shared
     @StateObject private var backgroundAudioManager = BackgroundAudioManager.shared
     @Environment(\.scenePhase) private var scenePhase
     
     /// Observer for memory warnings
     private let memoryWarningObserver = MemoryWarningObserver()
+    
+    /// Service initialization helper
+    private let serviceInitializer = ServiceInitializer()
 
     init() {
         // Log available voices on startup for debugging
@@ -19,6 +159,9 @@ struct ClawdyApp: App {
         // Warm up Kokoro TTS in the background if it's the preferred engine
         // This eliminates the delay on the first TTS request
         warmUpKokoroIfNeeded()
+        
+        // Initialize capability services
+        serviceInitializer.initializeServices()
     }
 
     var body: some Scene {
