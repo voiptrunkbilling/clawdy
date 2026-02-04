@@ -8,6 +8,8 @@
 	<true/>
 	<key>com.apple.developer.carplay-communication</key>
 	<true/>
+	<key>com.apple.developer.siri</key>
+	<true/>
 	<key>keychain-access-groups</key>
 	<array>
 		<string>$(AppIdentifierPrefix)com.clawdy.app</string>

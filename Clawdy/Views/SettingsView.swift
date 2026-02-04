@@ -302,6 +302,9 @@ struct SettingsView: View {
                 // Permissions section
                 PermissionsSection()
                 
+                // Siri & Shortcuts section
+                ShortcutsSettingsSection()
+                
                 // Debug section
                 Section {
                     Toggle("Verbose Gateway Logging", isOn: $viewModel.verboseLogging)

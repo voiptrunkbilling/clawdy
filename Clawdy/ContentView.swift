@@ -194,6 +194,13 @@ struct ContentView: View {
         .animation(.easeInOut(duration: 0.3), value: viewModel.isReconnecting)
         .animation(.easeInOut(duration: 0.25), value: viewModel.inputMode)
         .animation(.easeInOut(duration: 0.3), value: viewModel.offlineMessageQueue.messageCount)
+        // Handle Shortcuts notifications
+        .onReceive(NotificationCenter.default.publisher(for: .shortcutStartVoiceChat)) { _ in
+            viewModel.startRecording()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .shortcutClearContext)) { _ in
+            viewModel.clearContext()
+        }
         .sheet(isPresented: $showingSettings) {
             SettingsView(onClearContext: {
                 viewModel.clearContext()

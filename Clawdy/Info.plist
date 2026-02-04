@@ -36,6 +36,8 @@
 	<string>Clawdy needs camera access to take photos for sharing via voice commands.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Clawdy uses your location to share it with Clawdbot when you request it.</string>
+	<key>NSSiriUsageDescription</key>
+	<string>Clawdy uses Siri to let you ask questions and control the app with your voice.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
