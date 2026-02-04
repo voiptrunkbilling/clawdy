@@ -157,7 +157,7 @@ private struct StatusIndicator: View {
     var body: some View {
         HStack(spacing: 4) {
             Circle()
-                .fill(isActive ? Color.green : Color.gray.opacity(0.3))
+                .fill(isActive ? Color.green : Color.inactiveIndicator)
                 .frame(width: 8, height: 8)
             Text(isActive ? "Connected" : "Not Connected")
                 .font(.caption)

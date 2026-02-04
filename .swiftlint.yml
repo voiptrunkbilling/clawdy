@@ -1,0 +1,39 @@
+# SwiftLint config for Clawdy iOS app
+# Runs on Linux for early error detection
+
+disabled_rules:
+  - trailing_whitespace  # Can auto-fix, noisy
+  - line_length          # Often necessary for SwiftUI 
+  - type_body_length     # ViewModels can be large
+  - file_length          # Views can be large
+  - function_body_length # Some handlers are long
+  - cyclomatic_complexity
+
+opt_in_rules:
+  - empty_count
+  - empty_string
+  - force_unwrapping
+  - implicit_return
+  - modifier_order
+  - multiline_parameters
+  - operator_usage_whitespace
+  - redundant_type_annotation
+  - sorted_imports
+  - unneeded_parentheses_in_closure_argument
+  - vertical_whitespace_closing_braces
+
+excluded:
+  - .build
+  - Package.swift
+  - "*/Preview Content/*"
+
+force_cast: warning
+force_try: warning
+force_unwrapping: warning
+
+identifier_name:
+  min_length: 1
+  max_length: 60
+
+nesting:
+  type_level: 3

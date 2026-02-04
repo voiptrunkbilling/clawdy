@@ -357,7 +357,7 @@ struct StatusBarView: View {
 
             Button(action: onSettingsTap) {
                 Image(systemName: "gearshape")
-                    .font(.system(size: 16))
+                    .font(.body)
                     .foregroundColor(.secondary)
             }
             .accessibilityLabel("Settings")
@@ -500,9 +500,9 @@ struct CapabilityBadge: View {
     var body: some View {
         HStack(spacing: 2) {
             Text(label)
-                .font(.system(size: 9, weight: .medium))
+                .font(.caption2)
             Image(systemName: iconName)
-                .font(.system(size: 8, weight: .semibold))
+                .font(.caption2.weight(.semibold))
         }
         .foregroundColor(statusColor)
     }
@@ -750,7 +750,7 @@ struct MessageBubble: View {
                 // Main message text
                 if !message.text.isEmpty {
                     Text(message.text)
-                        .foregroundColor(message.isUser ? .white : .primary)
+                        .foregroundColor(message.isUser ? .onUserBubble : .primary)
                 }
 
                 // Inline tool calls (only for Claude's messages)
@@ -764,7 +764,7 @@ struct MessageBubble: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(message.isUser ? Color.blue : Color(.secondarySystemBackground))
+            .background(message.isUser ? Color.userBubbleBackground : Color(.secondarySystemBackground))
             .cornerRadius(16)
             .overlay(
                 // Pulsing border for streaming messages
@@ -882,7 +882,7 @@ struct MicButtonView: View {
 
                     // Icon based on current state
                     buttonIcon
-                        .font(.system(size: 30))
+                        .font(.title2)
                         .foregroundColor(.white)
                 }
             }
@@ -1019,12 +1019,12 @@ struct AuthTokenBlockingView: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.45)
+            Color.overlayBackground
                 .ignoresSafeArea()
 
             VStack(spacing: 16) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 36))
+                    .font(.title2)
                     .foregroundColor(.orange)
 
                 Text("Auth Token Required")

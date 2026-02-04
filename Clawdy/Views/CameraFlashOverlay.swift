@@ -9,7 +9,7 @@ import SwiftUI
 struct CameraFlashOverlay: View {
     var body: some View {
         Rectangle()
-            .fill(Color.white)
+            .fill(Color.flashColor)
             .ignoresSafeArea()
             .allowsHitTesting(false)
             .accessibilityHidden(true)

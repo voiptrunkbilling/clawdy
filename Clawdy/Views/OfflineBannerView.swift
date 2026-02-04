@@ -90,18 +90,18 @@ struct OfflineBannerView: View {
             HStack(spacing: 12) {
                 // Warning icon
                 Image(systemName: "network.slash")
-                    .font(.system(size: 20))
-                    .foregroundColor(.white)
+                    .font(.headline)
+                    .foregroundColor(.bannerText)
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(offlineMessage)
                         .font(.subheadline)
                         .fontWeight(.semibold)
-                        .foregroundColor(.white)
+                        .foregroundColor(.bannerText)
                     
                     Text(detailMessage)
                         .font(.caption)
-                        .foregroundColor(.white.opacity(0.9))
+                        .foregroundColor(.bannerText.opacity(0.9))
                 }
                 
                 Spacer()
@@ -109,29 +109,31 @@ struct OfflineBannerView: View {
                 Button(action: onRetry) {
                     if isReconnecting {
                         ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .progressViewStyle(CircularProgressViewStyle(tint: .bannerText))
                             .scaleEffect(0.8)
                             .frame(width: 60)
                     } else {
                         HStack(spacing: 4) {
                             Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(.caption.weight(.semibold))
                             Text("Retry")
                                 .font(.caption)
                                 .fontWeight(.semibold)
                         }
-                        .foregroundColor(.white)
+                        .foregroundColor(.bannerText)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(Color.white.opacity(0.2))
+                        .background(Color.bannerText.opacity(0.2))
                         .cornerRadius(14)
                     }
                 }
                 .disabled(isReconnecting)
+                .accessibilityLabel(isReconnecting ? "Reconnecting" : "Retry connection")
+                .accessibilityHint("Double tap to attempt reconnection")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(Color.red)
+            .background(Color.bannerBackground)
         }
     }
 }

@@ -434,7 +434,7 @@ struct ProfileQuickSwitchSheet: View {
             }
             .overlay {
                 if profileManager.isSwitching {
-                    Color.black.opacity(0.3)
+                    Color.overlayBackground
                         .ignoresSafeArea()
                     ProgressView("Switching...")
                         .padding()

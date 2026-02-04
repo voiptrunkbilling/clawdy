@@ -16,7 +16,9 @@ let package = Package(
     targets: [
         .target(
             name: "Clawdy",
-            dependencies: []
+            dependencies: [],
+            path: "Clawdy",
+            exclude: ["Info.plist", "Clawdy.entitlements", "Preview Content", "Assets.xcassets"]
         )
     ]
 )

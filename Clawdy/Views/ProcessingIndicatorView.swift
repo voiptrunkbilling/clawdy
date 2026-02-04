@@ -24,7 +24,7 @@ struct ProcessingIndicatorView: View {
                 HStack(spacing: 8) {
                     // Animated icon based on state
                     stateIcon
-                        .font(.system(size: 14))
+                        .font(.subheadline)
                         .foregroundColor(stateColor)
                     
                     // State description with animated dots
@@ -144,7 +144,7 @@ struct CancelButton: View {
                         .scaleEffect(0.7)
                 } else {
                     Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.caption.bold())
                 }
                 
                 Text(isCancelling ? "Stopping" : "Cancel")
@@ -154,12 +154,14 @@ struct CancelButton: View {
             .foregroundColor(.white)
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .background(isCancelling ? Color.gray : Color.red)
+            .background(isCancelling ? Color.buttonDisabled : Color.buttonDestructive)
             .cornerRadius(20)
             .scaleEffect(isPressed ? 0.95 : 1.0)
         }
         .disabled(isCancelling)
         .buttonStyle(PlainButtonStyle())
+        .accessibilityLabel(isCancelling ? "Stopping generation" : "Cancel generation")
+        .accessibilityHint("Double tap to stop the AI from generating a response")
         .simultaneousGesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { _ in isPressed = true }
@@ -222,7 +224,7 @@ struct ToolProgressView: View {
                         }
                 }
             }
-            .font(.system(size: 20))
+            .font(.headline)
             
             VStack(alignment: .leading, spacing: 2) {
                 Text(toolName)

@@ -41,7 +41,7 @@ struct AddImageButton: View {
                 }
             } label: {
                 Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 28))
+                    .font(.title3)
                     .foregroundColor(isEnabled ? .blue : .gray)
             }
             .menuOrder(.fixed)

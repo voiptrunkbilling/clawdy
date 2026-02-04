@@ -220,7 +220,7 @@ private struct EmptyQueueView: View {
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 60))
+                .font(.largeTitle)
                 .foregroundColor(.green)
             
             Text("Queue is Empty")

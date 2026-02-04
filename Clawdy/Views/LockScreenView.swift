@@ -32,7 +32,7 @@ struct LockScreenView: View {
             }) {
                 VStack(spacing: 12) {
                     Image(systemName: authManager.biometricType.systemImage)
-                        .font(.system(size: 50))
+                        .font(.title)
                         .foregroundColor(.blue)
 
                     Text("Unlock with \(authManager.biometricType.displayName)")
@@ -44,6 +44,8 @@ struct LockScreenView: View {
                 .background(Color(.secondarySystemBackground))
                 .cornerRadius(16)
             }
+            .accessibilityLabel("Unlock with \(authManager.biometricType.displayName)")
+            .accessibilityHint("Double tap to authenticate and unlock the app")
             .padding(.horizontal, 40)
 
             // Error message if present
@@ -76,7 +78,7 @@ struct LockScreenView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         } else {
             Image(systemName: "app.dashed")
-                .font(.system(size: 80))
+                .font(.largeTitle)
                 .foregroundColor(.blue)
         }
     }

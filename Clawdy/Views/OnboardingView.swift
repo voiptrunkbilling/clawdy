@@ -22,7 +22,7 @@ struct OnboardingView: View {
                 if let step = coordinator.currentStep {
                     // Icon
                     Image(systemName: step.systemImageName)
-                        .font(.system(size: 80))
+                        .font(.largeTitle)
                         .foregroundColor(.white)
                         .padding(.bottom, 30)
                     

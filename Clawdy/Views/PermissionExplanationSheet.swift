@@ -10,7 +10,7 @@ struct PermissionExplanationSheet: View {
         VStack(spacing: 24) {
             // Icon
             Image(systemName: permission.systemImageName)
-                .font(.system(size: 60))
+                .font(.largeTitle)
                 .foregroundColor(.accentColor)
                 .padding(.top, 40)
             

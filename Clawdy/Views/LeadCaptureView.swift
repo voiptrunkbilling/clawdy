@@ -207,7 +207,7 @@ struct LeadCaptureActionButton: View {
         Button(action: action) {
             VStack(spacing: 8) {
                 Image(systemName: icon)
-                    .font(.system(size: 28))
+                    .font(.title3)
                     .foregroundColor(.white)
                     .frame(width: 60, height: 60)
                     .background(color)
@@ -231,7 +231,7 @@ struct CallFollowUpPromptView: View {
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "phone.badge.checkmark")
-                .font(.system(size: 48))
+                .font(.title)
                 .foregroundColor(.green)
             
             Text("Call Ended")

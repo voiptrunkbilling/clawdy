@@ -97,9 +97,74 @@ struct PushToTalkButton: View {
             buttonContent
                 .offset(currentDragOffset)
                 .gesture(pttGesture)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(pttAccessibilityLabel)
+                .accessibilityHint(pttAccessibilityHint)
+                .accessibilityAddTraits(.isButton)
         }
         .animation(.easeOut(duration: 0.15), value: showCancelHint)
         .animation(.spring(response: 0.3), value: currentDragOffset)
+        .onChange(of: state) { oldState, newState in
+            // Post VoiceOver announcements on state transitions
+            announceStateTransition(from: oldState, to: newState)
+        }
+    }
+    
+    // MARK: - Accessibility
+    
+    private var pttAccessibilityLabel: String {
+        switch state {
+        case .idle:
+            return "Push to talk"
+        case .pressed, .recording:
+            return "Recording"
+        case .cancelled:
+            return "Recording cancelled"
+        case .thinking:
+            return "Processing your message"
+        case .responding:
+            return "Clawdy is responding"
+        }
+    }
+    
+    private var pttAccessibilityHint: String {
+        switch state {
+        case .idle:
+            return "Double tap and hold to record a voice message, then release to send"
+        case .pressed, .recording:
+            return "Release to send, or drag away to cancel"
+        case .cancelled:
+            return "Recording was cancelled"
+        case .thinking:
+            return "Please wait while processing"
+        case .responding:
+            return "Double tap to stop the response"
+        }
+    }
+    
+    private func announceStateTransition(from oldState: PTTState, to newState: PTTState) {
+        let announcement: String?
+        
+        switch (oldState, newState) {
+        case (_, .recording):
+            announcement = "Recording started"
+        case (.recording, .cancelled):
+            announcement = "Recording cancelled"
+        case (.recording, .thinking):
+            announcement = "Processing your message"
+        case (.thinking, .responding):
+            announcement = "Clawdy is responding"
+        case (.responding, .idle):
+            announcement = "Response complete"
+        case (_, .idle) where oldState != .responding:
+            announcement = nil // Don't announce other transitions to idle
+        default:
+            announcement = nil
+        }
+        
+        if let announcement = announcement {
+            UIAccessibility.post(notification: .announcement, argument: announcement)
+        }
     }
     
     // MARK: - Button Content
@@ -134,8 +199,8 @@ struct PushToTalkButton: View {
     
     private var idleContent: some View {
         Image(systemName: "mic.fill")
-            .font(.system(size: 28))
-            .foregroundColor(.white)
+            .font(.title3)
+            .foregroundColor(.onPTTButton)
     }
     
     private var recordingContent: some View {
@@ -153,8 +218,8 @@ struct PushToTalkButton: View {
     
     private var cancelledContent: some View {
         Image(systemName: "xmark")
-            .font(.system(size: 24, weight: .bold))
-            .foregroundColor(.white)
+            .font(.title3.bold())
+            .foregroundColor(.onPTTButton)
     }
     
     private var thinkingContent: some View {
@@ -172,9 +237,11 @@ struct PushToTalkButton: View {
         // Stop button during response
         Button(action: onStopResponse) {
             Image(systemName: "stop.fill")
-                .font(.system(size: 24))
-                .foregroundColor(.white)
+                .font(.title3)
+                .foregroundColor(.onPTTButton)
         }
+        .accessibilityLabel("Stop response")
+        .accessibilityHint("Double tap to stop the AI response")
     }
     
     // MARK: - Colors
@@ -182,15 +249,15 @@ struct PushToTalkButton: View {
     private var buttonBackgroundColor: Color {
         switch state {
         case .idle:
-            return .accentColor
+            return .pttIdle
         case .pressed, .recording:
-            return .red
+            return .pttRecording
         case .cancelled:
-            return .gray
+            return .pttCancelled
         case .thinking:
-            return .orange
+            return .pttThinking
         case .responding:
-            return .green
+            return .pttResponding
         }
     }
     

@@ -31,7 +31,7 @@ struct CollapsibleToolCallView: View {
                 HStack(spacing: 6) {
                     // Chevron indicator (▶) for expand/collapse state
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.caption2.weight(.semibold))
                         .foregroundColor(.secondary)
                         .frame(width: 12)
                     
@@ -132,12 +132,12 @@ struct CollapsibleToolCallView: View {
     private var statusIndicator: some View {
         if toolCall.isComplete {
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 12))
+                .font(.caption)
                 .foregroundColor(.green)
         } else {
             // Spinning progress indicator for running tools
             Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 12))
+                .font(.caption)
                 .foregroundColor(.orange)
                 .rotationEffect(.degrees(isSpinning ? 360 : 0))
                 .animation(.linear(duration: 1).repeatForever(autoreverses: false), value: isSpinning)

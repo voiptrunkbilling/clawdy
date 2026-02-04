@@ -88,7 +88,7 @@ struct TextInputBar: View {
                     onSwitchToVoice()
                 }) {
                     Image(systemName: "mic.fill")
-                        .font(.system(size: 20))
+                        .font(.headline)
                         .foregroundColor(.blue)
                         .frame(width: 32, height: 32)
                 }
@@ -99,7 +99,7 @@ struct TextInputBar: View {
                 // Send button
                 Button(action: sendWithHaptic) {
                     Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 32))
+                        .font(.title2)
                         .foregroundColor(canSend ? .blue : .gray)
                 }
                 .disabled(!canSend)
@@ -185,7 +185,7 @@ struct TextModeToggleButton: View {
             action()
         }) {
             Image(systemName: "keyboard")
-                .font(.system(size: 14))
+                .font(.subheadline)
                 .foregroundColor(.secondary)
                 .padding(10)
                 .background(Color(.tertiarySystemBackground))

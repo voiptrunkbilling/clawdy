@@ -114,7 +114,7 @@ struct ImageThumbnailView: View {
             onRemove?()
         }) {
             Image(systemName: "xmark.circle.fill")
-                .font(.system(size: 20))
+                .font(.headline)
                 .symbolRenderingMode(.palette)
                 .foregroundStyle(.white, Color.black.opacity(0.6))
         }

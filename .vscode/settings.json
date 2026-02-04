@@ -1,0 +1,13 @@
+{
+    "swift.path": "/opt/swift/usr/bin",
+    "sourcekit-lsp.serverPath": "/opt/swift/usr/bin/sourcekit-lsp",
+    "swift.diagnostics": true,
+    "swift.autoGenerateLaunchConfigurations": false,
+    "[swift]": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "vknabel.vscode-apple-swift-format"
+    },
+    "swiftlint.path": "/usr/local/bin/swiftlint",
+    "swiftlint.lintEnabled": true,
+    "swiftlint.fixOnSave": false
+}
