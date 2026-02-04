@@ -843,8 +843,19 @@ class GatewayDualConnectionManager: ObservableObject {
     
     // MARK: - Chat Operations (via Operator Connection)
     
+    /// Structured attachment for sending to the gateway.
+    struct ChatAttachment {
+        let data: Data
+        let mimeType: String
+        let fileExtension: String
+    }
+    
     /// Send a chat message via the operator connection.
-    func sendMessage(_ text: String, images: [Data]? = nil) async throws -> String {
+    /// - Parameters:
+    ///   - text: The message text
+    ///   - attachments: Optional structured attachments with MIME type info
+    ///   - thinking: Thinking level ("low", "medium", "high", "none")
+    func sendMessage(_ text: String, attachments: [ChatAttachment]? = nil, thinking: String = "low") async throws -> String {
         guard let connection = operatorConnection,
               await connection.isConnected else {
             throw GatewayError.notConnected
@@ -857,15 +868,16 @@ class GatewayDualConnectionManager: ObservableObject {
             "message": text,
             "deliver": false,
             "idempotencyKey": idempotencyKey,
+            "thinking": thinking,
         ]
         
-        if let images = images, !images.isEmpty {
-            params["attachments"] = images.map { imageData in
+        if let attachments = attachments, !attachments.isEmpty {
+            params["attachments"] = attachments.map { attachment in
                 [
                     "type": "image",
-                    "mimeType": "image/jpeg",
-                    "fileName": "\(UUID().uuidString.prefix(8)).jpg",
-                    "content": imageData.base64EncodedString(),
+                    "mimeType": attachment.mimeType,
+                    "fileName": "\(UUID().uuidString.prefix(8)).\(attachment.fileExtension)",
+                    "content": attachment.data.base64EncodedString(),
                 ]
             }
         }

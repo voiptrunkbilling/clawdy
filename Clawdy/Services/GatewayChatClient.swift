@@ -62,17 +62,24 @@ actor GatewayChatClient {
         images: [ImageAttachment] = [],
         thinking: String = "low"
     ) async throws -> SendResponse {
-        // Convert image attachments to Data array
-        var imageData: [Data]?
+        // Convert image attachments to structured attachments with proper MIME types
+        var attachments: [GatewayDualConnectionManager.ChatAttachment]?
         if !images.isEmpty {
-            imageData = images.compactMap { $0.getDataForUpload() }
-            if imageData?.isEmpty == true {
-                imageData = nil
+            attachments = images.compactMap { image -> GatewayDualConnectionManager.ChatAttachment? in
+                guard let data = image.getDataForUpload() else { return nil }
+                return GatewayDualConnectionManager.ChatAttachment(
+                    data: data,
+                    mimeType: image.mediaType,
+                    fileExtension: ImageAttachment.fileExtension(for: image.mediaType)
+                )
+            }
+            if attachments?.isEmpty == true {
+                attachments = nil
             }
         }
 
-        // Send via unified WebSocket connection
-        let runId = try await connectionManager.sendMessage(text, images: imageData)
+        // Send via unified WebSocket connection with thinking level
+        let runId = try await connectionManager.sendMessage(text, attachments: attachments, thinking: thinking)
         currentRunId = runId
         
         return SendResponse(runId: runId, sessionKey: sessionKey)
