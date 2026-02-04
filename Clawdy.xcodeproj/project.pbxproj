@@ -83,6 +83,8 @@
 		A100005D /* URLValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200005D /* URLValidator.swift */; };
 		A100005E /* UnifiedTTSManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200005E /* UnifiedTTSManager.swift */; };
 		A100005F /* ContextPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200005F /* ContextPreferences.swift */; };
+		A1000060 /* PhoneServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000060 /* PhoneServiceTests.swift */; };
+		A1000061 /* EmailServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000061 /* EmailServiceTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -175,6 +177,8 @@
 		A200005D /* URLValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLValidator.swift; sourceTree = "<group>"; };
 		A200005E /* UnifiedTTSManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedTTSManager.swift; sourceTree = "<group>"; };
 		A200005F /* ContextPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextPreferences.swift; sourceTree = "<group>"; };
+		A2000060 /* PhoneServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneServiceTests.swift; sourceTree = "<group>"; };
+		A2000061 /* EmailServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailServiceTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -269,6 +273,8 @@
 				A200005E /* UnifiedTTSManager.swift */,
 				A200005D /* URLValidator.swift */,
 				A2000011 /* VPNStatusMonitor.swift */,
+				A2000060 /* PhoneServiceTests.swift */,
+				A2000061 /* EmailServiceTests.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -492,6 +498,8 @@
 				A100005D /* URLValidator.swift in Sources */,
 				A100005E /* UnifiedTTSManager.swift in Sources */,
 				A100005F /* ContextPreferences.swift in Sources */,
+				A1000060 /* PhoneServiceTests.swift in Sources */,
+				A1000061 /* EmailServiceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -2281,5 +2281,88 @@ class ClawdyViewModel: ObservableObject {
             }
         }
         nodeCapabilityHandler.onContactsUpdate = contactsUpdateHandler
+        
+        // MARK: - Phone Handlers
+        
+        // phone.call - Initiate a phone call via CallKit
+        let phoneCallHandler: (PhoneCallParams) async -> PhoneCallResult = { params in
+            print("[NodeCapabilityHandler] phone.call invoked - number: \(params.number)")
+            
+            let service = await PhoneService.shared
+            
+            // Initiate the call using CallKit
+            let result = await service.initiateCall(phoneNumber: params.number)
+            
+            switch result {
+            case .success:
+                return .success()
+            case .notAvailable:
+                return .failed("Phone calls not available on this device")
+            case .invalidNumber:
+                return .failed("Invalid phone number format")
+            case .callFailed:
+                return .failed("Failed to initiate call")
+            }
+        }
+        nodeCapabilityHandler.onPhoneCall = phoneCallHandler
+        
+        // phone.sms - Compose an SMS message via MFMessageComposeViewController
+        let phoneSMSHandler: (PhoneSMSParams) async -> PhoneSMSResult = { params in
+            print("[NodeCapabilityHandler] phone.sms invoked - number: \(params.number)")
+            
+            let service = await PhoneService.shared
+            
+            // Compose SMS using system message composer
+            let result = await service.composeSMS(to: params.number, body: params.body)
+            
+            switch result {
+            case .sent:
+                return .success()
+            case .cancelled:
+                // User cancelled is still considered success (they made a choice)
+                return .success()
+            case .notAvailable:
+                return .failed("SMS not available on this device")
+            case .invalidNumber:
+                return .failed("Invalid phone number format")
+            case .composeFailed:
+                return .failed("Failed to compose SMS")
+            }
+        }
+        nodeCapabilityHandler.onPhoneSMS = phoneSMSHandler
+        
+        // MARK: - Email Handlers
+        
+        // email.compose - Compose an email via MFMailComposeViewController
+        let emailComposeHandler: (EmailComposeParams) async -> EmailComposeResult = { params in
+            print("[NodeCapabilityHandler] email.compose invoked - to: \(params.to), isHTML: \(params.isHTML ?? false)")
+            
+            let service = await EmailService.shared
+            
+            // Compose email using system mail composer with isHTML support
+            let result = await service.composeEmailAsync(
+                to: params.to,
+                subject: params.subject,
+                body: params.body,
+                isHTML: params.isHTML ?? false
+            )
+            
+            switch result {
+            case .sent:
+                return .success()
+            case .saved:
+                return .success()
+            case .cancelled:
+                // User cancelled is still considered success (they made a choice)
+                return .success()
+            case .notAvailable:
+                return .failed("Email not available on this device")
+            case .invalidRecipients:
+                return .failed("At least one recipient is required")
+            case .composeFailed:
+                return .failed("Failed to compose email")
+            }
+        }
+        nodeCapabilityHandler.onEmailCompose = emailComposeHandler
     }
 }

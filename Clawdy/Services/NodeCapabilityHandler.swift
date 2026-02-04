@@ -24,6 +24,9 @@ import UIKit
 /// | contacts.search | Search contacts                      |
 /// | contacts.create | Create a contact                     |
 /// | contacts.update | Update a contact                     |
+/// | phone.call      | Initiate a phone call                |
+/// | phone.sms       | Compose an SMS message               |
+/// | email.compose   | Compose an email                     |
 @MainActor
 class NodeCapabilityHandler {
     // MARK: - Capability Handler Types
@@ -72,6 +75,19 @@ class NodeCapabilityHandler {
     
     /// Handler for contacts.update capability - updates a contact
     var onContactsUpdate: ((_ params: ContactsUpdateParams) async -> ContactsUpdateResult)?
+    
+    // MARK: - Phone Handlers
+    
+    /// Handler for phone.call capability - initiates a phone call
+    var onPhoneCall: ((_ params: PhoneCallParams) async -> PhoneCallResult)?
+    
+    /// Handler for phone.sms capability - sends an SMS message
+    var onPhoneSMS: ((_ params: PhoneSMSParams) async -> PhoneSMSResult)?
+    
+    // MARK: - Email Handlers
+    
+    /// Handler for email.compose capability - composes an email
+    var onEmailCompose: ((_ params: EmailComposeParams) async -> EmailComposeResult)?
     
     // MARK: - JSON Coding
     
@@ -133,6 +149,15 @@ class NodeCapabilityHandler {
             
         case "contacts.update":
             return await handleContactsUpdate(request: request)
+            
+        case "phone.call":
+            return await handlePhoneCall(request: request, isBackground: isBackground)
+            
+        case "phone.sms":
+            return await handlePhoneSMS(request: request, isBackground: isBackground)
+            
+        case "email.compose":
+            return await handleEmailCompose(request: request, isBackground: isBackground)
             
         default:
             return makeErrorResponse(
@@ -548,6 +573,118 @@ class NodeCapabilityHandler {
         return makeSuccessResponse(id: request.id, payload: result)
     }
     
+    // MARK: - Phone Handlers
+    
+    private func handlePhoneCall(request: BridgeInvokeRequest, isBackground: Bool) async -> BridgeInvokeResponse {
+        if isBackground {
+            return makeErrorResponse(
+                id: request.id,
+                code: .backgroundUnavailable,
+                message: "Phone calls require app to be in foreground"
+            )
+        }
+        
+        guard let paramsJSON = request.paramsJSON,
+              let paramsData = paramsJSON.data(using: .utf8),
+              let params = try? decoder.decode(PhoneCallParams.self, from: paramsData) else {
+            return makeErrorResponse(
+                id: request.id,
+                code: .invalidRequest,
+                message: "Invalid phone.call params: expected {number: string}"
+            )
+        }
+        
+        guard let handler = onPhoneCall else {
+            return makeErrorResponse(
+                id: request.id,
+                code: .unavailable,
+                message: "phone.call handler not registered"
+            )
+        }
+        
+        let result = await handler(params)
+        
+        if let error = result.error {
+            return makeErrorResponse(id: request.id, code: .unavailable, message: error)
+        }
+        
+        return makeSuccessResponse(id: request.id, payload: result)
+    }
+    
+    private func handlePhoneSMS(request: BridgeInvokeRequest, isBackground: Bool) async -> BridgeInvokeResponse {
+        if isBackground {
+            return makeErrorResponse(
+                id: request.id,
+                code: .backgroundUnavailable,
+                message: "SMS requires app to be in foreground"
+            )
+        }
+        
+        guard let paramsJSON = request.paramsJSON,
+              let paramsData = paramsJSON.data(using: .utf8),
+              let params = try? decoder.decode(PhoneSMSParams.self, from: paramsData) else {
+            return makeErrorResponse(
+                id: request.id,
+                code: .invalidRequest,
+                message: "Invalid phone.sms params: expected {number: string, body?: string}"
+            )
+        }
+        
+        guard let handler = onPhoneSMS else {
+            return makeErrorResponse(
+                id: request.id,
+                code: .unavailable,
+                message: "phone.sms handler not registered"
+            )
+        }
+        
+        let result = await handler(params)
+        
+        if let error = result.error {
+            return makeErrorResponse(id: request.id, code: .unavailable, message: error)
+        }
+        
+        return makeSuccessResponse(id: request.id, payload: result)
+    }
+    
+    // MARK: - Email Handlers
+    
+    private func handleEmailCompose(request: BridgeInvokeRequest, isBackground: Bool) async -> BridgeInvokeResponse {
+        if isBackground {
+            return makeErrorResponse(
+                id: request.id,
+                code: .backgroundUnavailable,
+                message: "Email compose requires app to be in foreground"
+            )
+        }
+        
+        guard let paramsJSON = request.paramsJSON,
+              let paramsData = paramsJSON.data(using: .utf8),
+              let params = try? decoder.decode(EmailComposeParams.self, from: paramsData) else {
+            return makeErrorResponse(
+                id: request.id,
+                code: .invalidRequest,
+                message: "Invalid email.compose params: expected {to: string[], subject?: string, body?: string}"
+            )
+        }
+        
+        guard let handler = onEmailCompose else {
+            return makeErrorResponse(
+                id: request.id,
+                code: .unavailable,
+                message: "email.compose handler not registered"
+            )
+        }
+        
+        let result = await handler(params)
+        
+        if let error = result.error {
+            return makeErrorResponse(id: request.id, code: .unavailable, message: error)
+        }
+        
+        return makeSuccessResponse(id: request.id, payload: result)
+    }
+    
     // MARK: - Response Helpers
     
     private func makeSuccessResponse<T: Codable>(id: String, payload: T) -> BridgeInvokeResponse {
@@ -876,5 +1013,70 @@ struct ContactsUpdateResult: Codable {
     
     static func failed(_ message: String) -> ContactsUpdateResult {
         ContactsUpdateResult(updated: false, error: message)
+    }
+}
+
+// MARK: - Phone Capability Types
+
+/// Parameters for phone.call capability
+struct PhoneCallParams: Codable {
+    let number: String
+}
+
+/// Result of phone.call capability
+struct PhoneCallResult: Codable {
+    let initiated: Bool
+    let error: String?
+    
+    static func success() -> PhoneCallResult {
+        PhoneCallResult(initiated: true, error: nil)
+    }
+    
+    static func failed(_ message: String) -> PhoneCallResult {
+        PhoneCallResult(initiated: false, error: message)
+    }
+}
+
+/// Parameters for phone.sms capability
+struct PhoneSMSParams: Codable {
+    let number: String
+    let body: String?
+}
+
+/// Result of phone.sms capability
+struct PhoneSMSResult: Codable {
+    let composed: Bool
+    let error: String?
+    
+    static func success() -> PhoneSMSResult {
+        PhoneSMSResult(composed: true, error: nil)
+    }
+    
+    static func failed(_ message: String) -> PhoneSMSResult {
+        PhoneSMSResult(composed: false, error: message)
+    }
+}
+
+// MARK: - Email Capability Types
+
+/// Parameters for email.compose capability
+struct EmailComposeParams: Codable {
+    let to: [String]
+    let subject: String?
+    let body: String?
+    let isHTML: Bool?
+}
+
+/// Result of email.compose capability
+struct EmailComposeResult: Codable {
+    let composed: Bool
+    let error: String?
+    
+    static func success() -> EmailComposeResult {
+        EmailComposeResult(composed: true, error: nil)
+    }
+    
+    static func failed(_ message: String) -> EmailComposeResult {
+        EmailComposeResult(composed: false, error: message)
     }
 }
