@@ -148,6 +148,16 @@ struct SettingsView: View {
                         }
                     }
                     .disabled(voiceSettings.settings.ttsEngine == .kokoro && kokoroTTS.state != .ready)
+                    
+                    // Tap anywhere to stop toggle
+                    Toggle(isOn: $voiceSettings.settings.tapAnywhereToStop) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Tap Anywhere to Stop")
+                            Text("Tap the screen during playback to stop response")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 } header: {
                     Text("Voice")
                 } footer: {
@@ -285,6 +295,9 @@ struct SettingsView: View {
                         Text("Device needs pairing for both operator (chat) and node (camera/location) roles.")
                     }
                 }
+                
+                // Permissions section
+                PermissionsSection()
                 
                 // Debug section
                 Section {
@@ -1388,6 +1401,71 @@ class SettingsViewModel: ObservableObject {
         print("[Settings] Cleared device identity")
         
         keychainCleared = true
+    }
+}
+
+// MARK: - Permissions Section
+
+/// Section displaying permission statuses with Settings deep-link.
+struct PermissionsSection: View {
+    @StateObject private var permissionManager = PermissionManager.shared
+    
+    var body: some View {
+        Section {
+            ForEach(PermissionManager.PermissionType.allCases) { permission in
+                PermissionRow(
+                    permission: permission,
+                    status: permissionManager.statuses.status(for: permission)
+                )
+            }
+            
+            Button {
+                permissionManager.openSettings()
+            } label: {
+                HStack {
+                    Image(systemName: "gear")
+                    Text("Open App Settings")
+                }
+            }
+        } header: {
+            Text("Permissions")
+        } footer: {
+            Text("Tap any permission to manage in Settings, or use the button below.")
+        }
+        .onAppear {
+            permissionManager.refreshAllStatuses()
+        }
+    }
+}
+
+/// Single permission row with status indicator.
+private struct PermissionRow: View {
+    let permission: PermissionManager.PermissionType
+    let status: PermissionManager.PermissionStatus
+    
+    var body: some View {
+        Button {
+            PermissionManager.shared.openSettings()
+        } label: {
+            HStack {
+                Image(systemName: permission.systemImageName)
+                    .foregroundColor(.accentColor)
+                    .frame(width: 24)
+                
+                Text(permission.rawValue)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+                
+                HStack(spacing: 4) {
+                    Image(systemName: status.systemImageName)
+                        .foregroundColor(status.color)
+                    Text(status.rawValue)
+                        .font(.caption)
+                        .foregroundColor(status.color)
+                }
+            }
+        }
     }
 }
 

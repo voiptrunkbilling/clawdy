@@ -43,6 +43,9 @@ struct VoiceSettings: Codable, Equatable {
     
     /// Display name of the selected Kokoro voice
     var kokoroVoiceDisplayName: String?
+    
+    /// When enabled, tapping anywhere on screen stops the current response
+    var tapAnywhereToStop: Bool
 
     /// Default settings
     static let `default` = VoiceSettings(
@@ -51,7 +54,8 @@ struct VoiceSettings: Codable, Equatable {
         voiceIdentifier: nil,
         voiceDisplayName: nil,
         kokoroVoiceId: "af_heart",
-        kokoroVoiceDisplayName: "Heart (Warm female)"
+        kokoroVoiceDisplayName: "Heart (Warm female)",
+        tapAnywhereToStop: true
     )
 
     /// Minimum speech rate (half speed)

@@ -366,12 +366,19 @@ extension APNsManager {
     /// to set up APNs registration on app launch.
     func applicationDidFinishLaunching() {
         Task { @MainActor in
-            // Always request registration on launch.
-            // This handles:
-            // 1. First launch - will request permission
-            // 2. Permission already granted - will register for remote notifications
-            // 3. Permission denied - will fail gracefully
-            await requestRegistration()
+            // Check if onboarding has been completed
+            let onboardingCompleted = OnboardingCoordinator.shared.hasCompletedOnboarding
+            
+            if onboardingCompleted {
+                // Only request registration if notification permission was already granted
+                // This handles returning users who already completed onboarding
+                let settings = await UNUserNotificationCenter.current().notificationSettings()
+                if settings.authorizationStatus == .authorized ||
+                   settings.authorizationStatus == .provisional {
+                    await requestRegistration()
+                }
+            }
+            // For new users, onboarding will handle the permission request
             
             // Set up connection state listener to re-register token when gateway connects
             setupConnectionStateListener()

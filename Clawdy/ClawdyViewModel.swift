@@ -264,6 +264,13 @@ class ClawdyViewModel: ObservableObject {
     @Published var isRecording = false
     @Published var isSpeaking = false
     @Published var isGeneratingAudio = false
+    
+    /// Audio amplitude for voice waveform visualization (0.0 - 1.0)
+    @Published var audioAmplitude: CGFloat = 0.0
+    
+    /// Push-to-talk button state
+    @Published var pttState: PTTState = .idle
+    
     @Published var connectionStatus: ConnectionStatus = .disconnected(reason: "Not connected") {
         didSet {
             handleConnectionStatusChange(from: oldValue, to: connectionStatus)
@@ -633,15 +640,40 @@ class ClawdyViewModel: ObservableObject {
 
     func stopRecording() {
         isRecording = false
+        pttState = .thinking  // Update PTT state to thinking while processing
         let transcription = speechRecognizer.stopRecording()
 
         guard !transcription.isEmpty else {
             addMessage("No speech detected. Please try again.", isUser: false)
+            pttState = .idle
             return
         }
 
         addMessage(transcription, isUser: true)
         sendCommand(transcription)
+    }
+    
+    /// Cancel recording without sending (for PTT cancel gesture).
+    /// Stops the speech recognizer but discards the transcription.
+    func cancelRecording() {
+        isRecording = false
+        pttState = .idle
+        // Stop recording without processing the transcription
+        _ = speechRecognizer.stopRecording()
+    }
+    
+    /// Update PTT state based on current processing/speaking state.
+    /// Called when relevant states change to sync the PTT button display.
+    func updatePTTState() {
+        if isRecording {
+            pttState = .recording
+        } else if processingState.isActive && !isSpeaking {
+            pttState = .thinking
+        } else if isSpeaking || isGeneratingAudio {
+            pttState = .responding
+        } else {
+            pttState = .idle
+        }
     }
     
     // MARK: - Text Input

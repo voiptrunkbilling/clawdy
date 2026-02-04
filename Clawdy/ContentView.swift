@@ -5,6 +5,7 @@ import UIKit
 struct ContentView: View {
     @StateObject private var viewModel = ClawdyViewModel()
     @StateObject private var imagePickerCoordinator = ImagePickerCoordinator()
+    @StateObject private var voiceSettings = VoiceSettingsManager.shared
     @State private var showingSettings = false
 
     /// Focus state for text input - used to dismiss/show keyboard on mode switch
@@ -109,27 +110,20 @@ struct ContentView: View {
             // Input area: voice mode or text mode with transition animations
             Group {
                 if viewModel.inputMode == .voice {
-                    // Voice input with mic button and keyboard toggle
+                    // Voice input with push-to-talk button and keyboard toggle
                     HStack(alignment: .bottom, spacing: 16) {
                         Spacer()
 
-                        MicButtonView(
-                            isRecording: viewModel.isRecording,
-                            isSpeaking: viewModel.isSpeaking,
-                            isGeneratingAudio: viewModel.isGeneratingAudio,
-                            processingState: viewModel.processingState,
-                            onTap: {
-                                if viewModel.isRecording {
-                                    viewModel.stopRecording()
-                                } else if viewModel.isSpeaking {
+                        PushToTalkButton(
+                            amplitude: viewModel.audioAmplitude,
+                            state: $viewModel.pttState,
+                            onRecordingStart: { viewModel.startRecording() },
+                            onRecordingEnd: { viewModel.stopRecording() },
+                            onRecordingCancel: { viewModel.cancelRecording() },
+                            onStopResponse: {
+                                if viewModel.isSpeaking {
                                     viewModel.stopSpeaking()
                                 } else {
-                                    viewModel.startRecording()
-                                }
-                            },
-                            onLongPress: {
-                                // Long press to abort generation
-                                if viewModel.processingState.isActive {
                                     viewModel.abortGeneration()
                                 }
                             }
@@ -184,6 +178,17 @@ struct ContentView: View {
             .animation(.easeInOut(duration: 0.25), value: viewModel.inputMode)
         }
         .background(Color(.systemBackground))
+        .contentShape(Rectangle()) // Make entire area tappable
+        .onTapGesture {
+            // Tap anywhere to stop response (if enabled in settings)
+            if voiceSettings.settings.tapAnywhereToStop {
+                if viewModel.isSpeaking {
+                    viewModel.stopSpeaking()
+                } else if viewModel.processingState.isActive {
+                    viewModel.abortGeneration()
+                }
+            }
+        }
         .animation(.easeInOut(duration: 0.2), value: viewModel.processingState)
         .animation(.easeInOut(duration: 0.3), value: isOffline)
         .animation(.easeInOut(duration: 0.3), value: viewModel.isReconnecting)

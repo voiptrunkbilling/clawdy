@@ -127,6 +127,8 @@ struct ClawdyApp: App {
     
     @StateObject private var authManager = AuthenticationManager.shared
     @StateObject private var backgroundAudioManager = BackgroundAudioManager.shared
+    @StateObject private var onboardingCoordinator = OnboardingCoordinator.shared
+    @StateObject private var permissionManager = PermissionManager.shared
     @Environment(\.scenePhase) private var scenePhase
     
     /// Observer for memory warnings
@@ -153,7 +155,15 @@ struct ClawdyApp: App {
         WindowGroup {
             Group {
                 if authManager.isAuthenticated {
-                    ContentView()
+                    if onboardingCoordinator.shouldShowOnboarding {
+                        OnboardingView(coordinator: onboardingCoordinator)
+                            .onAppear {
+                                onboardingCoordinator.startOnboarding()
+                            }
+                    } else {
+                        ContentView()
+                            .permissionHandling(permissionManager: permissionManager)
+                    }
                 } else {
                     LockScreenView(authManager: authManager)
                 }
@@ -205,6 +215,9 @@ struct ClawdyApp: App {
         case .active:
             // Warm up Kokoro when app becomes active (in case settings changed)
             warmUpKokoroIfNeeded()
+            
+            // Refresh permission statuses (in case user changed them in Settings)
+            permissionManager.refreshAllStatuses()
         @unknown default:
             break
         }
