@@ -92,6 +92,8 @@
 		A1000066 /* OfflineMessageQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000066 /* OfflineMessageQueue.swift */; };
 		A1000067 /* OfflineQueueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000067 /* OfflineQueueView.swift */; };
 		A1000068 /* OfflineMessageQueueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000068 /* OfflineMessageQueueTests.swift */; };
+		A1000069 /* ContextModeSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000069 /* ContextModeSettingsView.swift */; };
+		A1000070 /* ContextDetectionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000070 /* ContextDetectionServiceTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -193,6 +195,8 @@
 		A2000066 /* OfflineMessageQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineMessageQueue.swift; sourceTree = "<group>"; };
 		A2000067 /* OfflineQueueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueueView.swift; sourceTree = "<group>"; };
 		A2000068 /* OfflineMessageQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineMessageQueueTests.swift; sourceTree = "<group>"; };
+		A2000069 /* ContextModeSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextModeSettingsView.swift; sourceTree = "<group>"; };
+		A2000070 /* ContextDetectionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextDetectionServiceTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -294,6 +298,7 @@
 				A2000065 /* LeadCaptureUITests.swift */,
 				A2000066 /* OfflineMessageQueue.swift */,
 				A2000068 /* OfflineMessageQueueTests.swift */,
+				A2000070 /* ContextDetectionServiceTests.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -334,6 +339,7 @@
 				A200001C /* ToastView.swift */,
 				A2000064 /* LeadCaptureView.swift */,
 				A2000067 /* OfflineQueueView.swift */,
+				A2000069 /* ContextModeSettingsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -528,6 +534,8 @@
 				A1000067 /* OfflineQueueView.swift in Sources */,
 				A1000068 /* OfflineMessageQueueTests.swift in Sources */,
 				A1000064 /* LeadCaptureView.swift in Sources */,
+				A1000069 /* ContextModeSettingsView.swift in Sources */,
+				A1000070 /* ContextDetectionServiceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

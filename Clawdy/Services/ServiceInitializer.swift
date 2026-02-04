@@ -26,10 +26,50 @@ final class ServiceInitializer {
         _ = OfflineQueueService.shared
         _ = ContextDetectionService.shared
         
+        // Set up context detection gateway integration
+        setupContextDetectionCallbacks()
+        
         // Set up notification observers for APNs events
         setupAPNsObservers()
         
+        // Set up gateway connection observer for geofence sync
+        setupGatewayConnectionObserver()
+        
         print("[ServiceInitializer] Services initialized")
+    }
+    
+    /// Set up ContextDetectionService callbacks for gateway integration.
+    private func setupContextDetectionCallbacks() {
+        Task { @MainActor in
+            let contextService = ContextDetectionService.shared
+            
+            // Wire up context mode change callback to send updates to gateway
+            contextService.onContextUpdate = { [weak contextService] mode in
+                guard let _ = contextService else { return }
+                print("[ServiceInitializer] Context mode changed to: \(mode.rawValue)")
+                // The sendContextUpdateToGateway() is already called internally by ContextDetectionService
+                // This callback is for any additional ViewModel-level handling if needed
+            }
+        }
+    }
+    
+    /// Set up observer for gateway connection to sync geofence zones.
+    private func setupGatewayConnectionObserver() {
+        // Monitor gateway connection status and fetch geofence zones when connected
+        NotificationCenter.default.addObserver(
+            forName: .gatewayDidConnect,
+            object: nil,
+            queue: .main
+        ) { _ in
+            print("[ServiceInitializer] Gateway connected, fetching geofence zones...")
+            Task { @MainActor in
+                // Fetch preferences from gateway (includes geofence zones)
+                await ContextPreferencesManager.shared.fetchFromGateway()
+                
+                // Sync geofence zones to ContextDetectionService
+                await ContextDetectionService.shared.syncGeofenceZonesFromPreferences()
+            }
+        }
     }
     
     /// Set up observers for APNs-related notifications.
@@ -102,4 +142,7 @@ extension Notification.Name {
     /// Posted to request navigation to a specific session.
     /// userInfo contains "sessionKey" key.
     static let navigateToSession = Notification.Name("navigateToSession")
+    
+    /// Posted when gateway connection is established.
+    static let gatewayDidConnect = Notification.Name("gatewayDidConnect")
 }

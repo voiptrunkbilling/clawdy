@@ -270,15 +270,41 @@ class ContextPreferencesManager: ObservableObject {
     private func syncToContextDetectionService(_ prefs: UserContextPreferences) {
         let service = ContextDetectionService.shared
         
+        // Convert stored GeofenceZone models to ContextDetectionService.GeofenceZone
+        var zones: [ContextDetectionService.GeofenceZone] = []
+        
         if let home = prefs.home {
+            let zone = ContextDetectionService.GeofenceZone(
+                name: home.name,
+                latitude: home.latitude,
+                longitude: home.longitude,
+                radius: home.radius,
+                contextMode: .home
+            )
+            zones.append(zone)
+            
+            // Also set home location for proximity detection
             let location = CLLocation(latitude: home.latitude, longitude: home.longitude)
             service.setHomeLocation(location)
         }
         
         if let office = prefs.office {
+            let zone = ContextDetectionService.GeofenceZone(
+                name: office.name,
+                latitude: office.latitude,
+                longitude: office.longitude,
+                radius: office.radius,
+                contextMode: .office
+            )
+            zones.append(zone)
+            
+            // Also set work location for proximity detection
             let location = CLLocation(latitude: office.latitude, longitude: office.longitude)
             service.setWorkLocation(location)
         }
+        
+        // Update all geofence zones in the detection service
+        service.updateGeofenceZones(zones)
     }
     
     // MARK: - Gateway Sync

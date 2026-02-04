@@ -825,8 +825,15 @@ class GatewayDualConnectionManager: ObservableObject {
             } else {
                 logger.info("Combined status: \(newStatus.displayText)")
             }
+            
+            let wasConnected = status == .connected
             status = newStatus
             updateBackgroundTaskForCurrentStatus()
+            
+            // Post notification when transitioning to connected state
+            if newStatus == .connected && !wasConnected {
+                NotificationCenter.default.post(name: .gatewayDidConnect, object: nil)
+            }
         }
     }
     
