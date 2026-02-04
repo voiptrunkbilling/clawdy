@@ -68,6 +68,9 @@ struct SettingsView: View {
                     Text("Clawdbot gateway host and port. Default port is \(GATEWAY_WS_PORT). Uses gateway.auth.token when no device token exists.")
                 }
                 
+                // Gateway Profiles
+                GatewayProfilesSection()
+                
                 // TTS Engine Selection
                 Section {
                     // Engine picker

@@ -167,6 +167,9 @@ class ContextDetectionService: NSObject, ObservableObject {
     /// Work location (set by user or from geofence)
     private var workLocation: CLLocation?
     
+    /// Whether the current mode was set via manual override (for hysteresis bypass on clear)
+    private var wasFromManualOverride: Bool = false
+    
     /// Proximity threshold for "at home" / "at work" detection (meters)
     private let proximityThreshold: Double = 100
     
@@ -373,6 +376,16 @@ class ContextDetectionService: NSObject, ObservableObject {
     private func applyHysteresis(_ newMode: ContextMode) -> ContextMode {
         // Manual override bypasses hysteresis
         if manualOverride != nil {
+            detectedMode = newMode
+            lastModeChangeAt = Date()
+            wasFromManualOverride = true
+            return newMode
+        }
+        
+        // Also bypass hysteresis when clearing manual override
+        // (so we immediately recalculate based on actual context)
+        if wasFromManualOverride {
+            wasFromManualOverride = false
             detectedMode = newMode
             lastModeChangeAt = Date()
             return newMode

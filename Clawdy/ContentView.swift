@@ -306,11 +306,19 @@ struct StatusBarView: View {
     let gatewayFailure: GatewayConnectionFailure
     let vpnStatus: VPNStatus
     let onSettingsTap: () -> Void
+    var onProfileSwitch: (() -> Void)?
+    
+    @State private var showingProfilePicker = false
 
     var body: some View {
         HStack(spacing: 12) {
-            // Gateway connection status indicator
+            // Gateway connection status indicator (long-press for profile switch)
             ConnectionStatusIndicator(status: connectionStatus)
+                .onLongPressGesture(minimumDuration: 0.5) {
+                    if GatewayProfileManager.shared.profiles.count > 0 {
+                        showingProfilePicker = true
+                    }
+                }
 
             Divider()
                 .frame(height: 24)
@@ -332,6 +340,18 @@ struct StatusBarView: View {
                 .accessibilityLabel("Open VPN Settings")
                 .accessibilityHint("Opens VPN settings")
             }
+            
+            // Active profile indicator
+            if let activeProfile = GatewayProfileManager.shared.activeProfile,
+               GatewayProfileManager.shared.profiles.count > 1 {
+                Text(activeProfile.name)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.secondary.opacity(0.15))
+                    .cornerRadius(4)
+            }
 
             Spacer()
 
@@ -348,6 +368,9 @@ struct StatusBarView: View {
         .background(Color(.secondarySystemBackground))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Status bar")
+        .sheet(isPresented: $showingProfilePicker) {
+            ProfileQuickSwitchSheet()
+        }
     }
 
     /// Whether we should show VPN as a warning (disconnected AND needed due to host unreachable)

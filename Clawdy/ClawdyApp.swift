@@ -216,6 +216,11 @@ struct ClawdyApp: App {
             // Warm up Kokoro when app becomes active (in case settings changed)
             warmUpKokoroIfNeeded()
             
+            // Fetch geofences and context preferences from gateway after connection
+            Task { @MainActor in
+                await ContextDetectionService.shared.fetchGeofenceZonesFromGateway()
+            }
+            
             // Refresh permission statuses (in case user changed them in Settings)
             permissionManager.refreshAllStatuses()
         @unknown default:

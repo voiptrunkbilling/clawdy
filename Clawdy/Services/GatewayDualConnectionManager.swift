@@ -232,7 +232,7 @@ class GatewayDualConnectionManager: ObservableObject {
         switch vpnStatus {
         case .connected:
             guard autoConnectEnabled, !isManuallyDisconnected else { return }
-            guard keychain.hasGatewayCredentials() else { return }
+            guard hasGatewayCredentials else { return }
             guard !status.isConnected, !isConnecting else { return }
 
             let appIsActive = UIApplication.shared.applicationState == .active
@@ -250,7 +250,7 @@ class GatewayDualConnectionManager: ObservableObject {
             logger.info("VPN disconnected; attempting auto-connect if configured")
 
             guard autoConnectEnabled, !isManuallyDisconnected else { return }
-            guard keychain.hasGatewayCredentials() else { return }
+            guard hasGatewayCredentials else { return }
             guard !status.isConnected, !isConnecting else { return }
 
             Task { @MainActor in
@@ -260,6 +260,11 @@ class GatewayDualConnectionManager: ObservableObject {
         case .unknown:
             break
         }
+    }
+    
+    /// Whether we have configured gateway credentials (either from profile manager or legacy keychain)
+    private var hasGatewayCredentials: Bool {
+        GatewayProfileManager.shared.hasActiveProfile || keychain.hasGatewayCredentials()
     }
     
     // MARK: - Connection Management
@@ -329,7 +334,18 @@ class GatewayDualConnectionManager: ObservableObject {
             return
         }
         
-        guard let credentials = keychain.loadGatewayCredentials() else {
+        // Prefer credentials from profile manager (supports multiple profiles)
+        // Fall back to legacy keychain credentials for backward compatibility
+        let credentials: KeychainManager.GatewayCredentials?
+        if let profileCredentials = await GatewayProfileManager.shared.activeCredentials {
+            credentials = profileCredentials
+        } else if let legacyCredentials = keychain.loadGatewayCredentials() {
+            credentials = legacyCredentials
+        } else {
+            credentials = nil
+        }
+        
+        guard let credentials = credentials else {
             status = .disconnected
             updateAuthTokenMissing(false)
             logger.warning("Cannot connect - no gateway credentials")

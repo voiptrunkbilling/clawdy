@@ -305,6 +305,20 @@ class ContextPreferencesManager: ObservableObject {
         
         // Update all geofence zones in the detection service
         service.updateGeofenceZones(zones)
+        
+        // Sync manual override to detection service
+        if let override = prefs.manualOverride {
+            switch override {
+            case .driving:
+                service.manualOverride = .driving
+            case .office:
+                service.manualOverride = .office
+            case .home:
+                service.manualOverride = .home
+            }
+        } else {
+            service.manualOverride = nil
+        }
     }
     
     // MARK: - Gateway Sync
