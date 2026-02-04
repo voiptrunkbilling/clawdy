@@ -182,6 +182,23 @@ class ContextDetectionService: NSObject, ObservableObject {
     /// Callback for sending context updates to gateway
     var onContextUpdate: ((ContextMode) -> Void)?
     
+    // MARK: - CarPlay Connection
+    
+    /// Sets the CarPlay connected state and triggers context mode recalculation.
+    /// Called by CarPlaySceneDelegate when CarPlay connects/disconnects.
+    func setCarPlayConnected(_ connected: Bool) {
+        guard connected != isCarPlayConnected else { return }
+        
+        isCarPlayConnected = connected
+        print("[ContextDetection] CarPlay connected: \(connected)")
+        
+        // Trigger immediate context recalculation
+        updateContextMode()
+        
+        // Notify gateway of context change
+        sendContextUpdateToGateway()
+    }
+    
     // MARK: - Test Mode Properties
     
     /// For testing: allows setting CarPlay connected state directly

@@ -431,6 +431,24 @@ class ClawdyViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] speaking in
                 self?.isSpeaking = speaking
+                // Notify CarPlay of speaking state change
+                NotificationCenter.default.post(
+                    name: Notification.Name("ClawdySpeakingStateChanged"),
+                    object: nil,
+                    userInfo: ["isSpeaking": speaking]
+                )
+            }
+            .store(in: &cancellables)
+        
+        // Observe processing state changes to notify CarPlay
+        $processingState
+            .receive(on: DispatchQueue.main)
+            .sink { state in
+                NotificationCenter.default.post(
+                    name: Notification.Name("ClawdyProcessingStateChanged"),
+                    object: nil,
+                    userInfo: ["isProcessing": state.isActive]
+                )
             }
             .store(in: &cancellables)
         
@@ -625,6 +643,38 @@ class ClawdyViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+        
+        // Observe CarPlay PTT button presses
+        NotificationCenter.default.publisher(for: .carPlayPTTPressed)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                
+                if self.isRecording {
+                    self.stopRecording()
+                } else if self.isSpeaking {
+                    self.stopSpeaking()
+                } else {
+                    self.startRecording()
+                }
+            }
+            .store(in: &cancellables)
+        
+        // Observe CarPlay stop button presses
+        NotificationCenter.default.publisher(for: .carPlayStopPressed)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                
+                if self.isRecording {
+                    self.cancelRecording()
+                } else if self.isSpeaking {
+                    self.stopSpeaking()
+                } else if self.processingState.isActive {
+                    self.abortGeneration()
+                }
+            }
+            .store(in: &cancellables)
     }
 
     func startRecording() {
@@ -632,6 +682,12 @@ class ClawdyViewModel: ObservableObject {
             do {
                 try await speechRecognizer.startRecording()
                 isRecording = true
+                // Notify CarPlay of recording state change
+                NotificationCenter.default.post(
+                    name: Notification.Name("ClawdyRecordingStateChanged"),
+                    object: nil,
+                    userInfo: ["isRecording": true]
+                )
             } catch {
                 addMessage("Error starting recording: \(error.localizedDescription)", isUser: false)
             }
@@ -641,6 +697,12 @@ class ClawdyViewModel: ObservableObject {
     func stopRecording() {
         isRecording = false
         pttState = .thinking  // Update PTT state to thinking while processing
+        // Notify CarPlay of recording state change
+        NotificationCenter.default.post(
+            name: Notification.Name("ClawdyRecordingStateChanged"),
+            object: nil,
+            userInfo: ["isRecording": false]
+        )
         let transcription = speechRecognizer.stopRecording()
 
         guard !transcription.isEmpty else {
@@ -658,6 +720,12 @@ class ClawdyViewModel: ObservableObject {
     func cancelRecording() {
         isRecording = false
         pttState = .idle
+        // Notify CarPlay of recording state change
+        NotificationCenter.default.post(
+            name: Notification.Name("ClawdyRecordingStateChanged"),
+            object: nil,
+            userInfo: ["isRecording": false]
+        )
         // Stop recording without processing the transcription
         _ = speechRecognizer.stopRecording()
     }
