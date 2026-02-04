@@ -1,12 +1,27 @@
 import Foundation
 import UIKit
 import UserNotifications
+import OSLog
+import Combine
 
 /// Manages Apple Push Notification service (APNs) registration and token handling.
 /// Works alongside NotificationManager for remote push notification support.
 @MainActor
 class APNsManager: NSObject, ObservableObject {
     static let shared = APNsManager()
+    
+    // MARK: - Notification Categories
+    
+    /// Category for agent/chat messages
+    static let agentMessageCategory = "agent_message"
+    
+    /// Category for cron job alerts
+    static let cronAlertCategory = "cron_alert"
+    
+    /// Category for silent sync (background refresh)
+    static let silentSyncCategory = "silent_sync"
+    
+    private let logger = Logger(subsystem: "com.clawdy", category: "apns")
     
     // MARK: - Published Properties
     
@@ -72,7 +87,7 @@ class APNsManager: NSObject, ObservableObject {
     /// The actual token is received via AppDelegate callbacks.
     func requestRegistration() async {
         guard !isRegistering else {
-            print("[APNsManager] Registration already in progress")
+            logger.info("Registration already in progress")
             return
         }
         
@@ -84,23 +99,59 @@ class APNsManager: NSObject, ObservableObject {
         let granted = await notificationManager.requestAuthorization()
         
         guard granted else {
-            print("[APNsManager] Notification permission denied, cannot register for APNs")
+            logger.warning("Notification permission denied, cannot register for APNs")
             lastError = APNsError.permissionDenied
             isRegistering = false
             return
         }
         
+        // Register notification categories for custom actions
+        await registerNotificationCategories()
+        
         // Request remote notification registration
         // This triggers a call to AppDelegate's didRegisterForRemoteNotificationsWithDeviceToken
-        print("[APNsManager] Requesting remote notification registration...")
+        logger.info("Requesting remote notification registration...")
         UIApplication.shared.registerForRemoteNotifications()
+    }
+    
+    /// Register notification categories for different notification types.
+    private func registerNotificationCategories() async {
+        let agentMessageCategory = UNNotificationCategory(
+            identifier: Self.agentMessageCategory,
+            actions: [],
+            intentIdentifiers: [],
+            options: [.customDismissAction]
+        )
+        
+        let cronAlertCategory = UNNotificationCategory(
+            identifier: Self.cronAlertCategory,
+            actions: [],
+            intentIdentifiers: [],
+            options: []
+        )
+        
+        let silentSyncCategory = UNNotificationCategory(
+            identifier: Self.silentSyncCategory,
+            actions: [],
+            intentIdentifiers: [],
+            hiddenPreviewsBodyPlaceholder: "",
+            options: []
+        )
+        
+        UNUserNotificationCenter.current().setNotificationCategories([
+            agentMessageCategory,
+            cronAlertCategory,
+            silentSyncCategory
+        ])
+        
+        logger.debug("Registered notification categories")
     }
     
     /// Called when the app receives the APNs device token.
     /// This is invoked from AppDelegate.
     func didRegisterForRemoteNotifications(withDeviceToken deviceToken: Data) {
         let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
-        print("[APNsManager] Received APNs token: \(tokenString.prefix(16))...")
+        logger.info("Received APNs token: \(tokenString.prefix(16), privacy: .public)...")
         
         self.deviceToken = tokenString
         self.isRegistering = false
@@ -115,7 +166,7 @@ class APNsManager: NSObject, ObservableObject {
     /// Called when APNs registration fails.
     /// This is invoked from AppDelegate.
     func didFailToRegisterForRemoteNotifications(withError error: Error) {
-        print("[APNsManager] Failed to register for APNs: \(error.localizedDescription)")
+        logger.error("Failed to register for APNs: \(error.localizedDescription, privacy: .public)")
         
         self.lastError = error
         self.isRegistering = false
@@ -128,18 +179,17 @@ class APNsManager: NSObject, ObservableObject {
     /// Call this after receiving the token and when connected to the gateway.
     func registerTokenWithGateway() async {
         guard let token = deviceToken else {
-            print("[APNsManager] No token to register")
+            logger.debug("No token to register")
             return
         }
         
-        guard let deviceId = DeviceIdentityStore.shared.persistentDeviceID else {
-            print("[APNsManager] No device ID available")
-            return
-        }
+        let identity = DeviceIdentityStore.loadOrCreate()
+        let deviceId = identity.deviceId
         
-        // Get the gateway connection
-        guard let connection = GatewayDualConnectionManager.shared.primaryConnection else {
-            print("[APNsManager] No gateway connection available")
+        // Check if gateway is connected
+        let connectionManager = GatewayDualConnectionManager.shared
+        guard connectionManager.status.isConnected || connectionManager.status.isPartiallyConnected else {
+            logger.info("Gateway not connected, will retry token registration later")
             return
         }
         
@@ -151,18 +201,13 @@ class APNsManager: NSObject, ObservableObject {
                 "bundleId": bundleId
             ]
             
-            print("[APNsManager] Registering APNs token with gateway...")
-            let response = try await connection.sendRequest(method: "device.apns.register", params: params)
+            logger.info("Registering APNs token with gateway...")
+            _ = try await connectionManager.request(method: "device.register", params: params)
             
-            if response.success {
-                print("[APNsManager] Successfully registered APNs token with gateway")
-                isRegisteredWithGateway = true
-            } else {
-                print("[APNsManager] Gateway rejected APNs registration: \(response.error?.message ?? "unknown error")")
-                isRegisteredWithGateway = false
-            }
+            logger.info("Successfully registered APNs token with gateway")
+            isRegisteredWithGateway = true
         } catch {
-            print("[APNsManager] Failed to register APNs token with gateway: \(error)")
+            logger.error("Failed to register APNs token with gateway: \(error.localizedDescription, privacy: .public)")
             isRegisteredWithGateway = false
         }
     }
@@ -172,13 +217,13 @@ class APNsManager: NSObject, ObservableObject {
     /// Handle incoming remote notification.
     /// This is called from AppDelegate or SceneDelegate when a push is received.
     func handleRemoteNotification(userInfo: [AnyHashable: Any], completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
-        print("[APNsManager] Received remote notification")
+        logger.info("Received remote notification")
         
         let payload = parseNotificationPayload(userInfo)
         
         // Check if this is a silent notification (background fetch)
-        if payload.isContentAvailable {
-            print("[APNsManager] Processing silent notification")
+        if payload.isContentAvailable || payload.category == Self.silentSyncCategory {
+            logger.debug("Processing silent notification")
             handleSilentNotification(payload: payload, completionHandler: completionHandler)
             return
         }
@@ -188,8 +233,29 @@ class APNsManager: NSObject, ObservableObject {
         completionHandler(.newData)
     }
     
+    /// Determine if a notification should be shown in foreground based on its category.
+    /// - Returns: Presentation options for the notification, or empty set to suppress.
+    func foregroundPresentationOptions(for payload: RemoteNotificationPayload) -> UNNotificationPresentationOptions {
+        switch payload.category {
+        case Self.silentSyncCategory:
+            // Never show silent sync notifications
+            return []
+        case Self.agentMessageCategory:
+            // Show agent messages as banners with sound
+            return [.banner, .sound]
+        case Self.cronAlertCategory:
+            // Show cron alerts as banners with sound and badge
+            return [.banner, .sound, .badge]
+        default:
+            // Default: show as banner with sound
+            return [.banner, .sound]
+        }
+    }
+    
     /// Parse the notification payload from userInfo.
-    private func parseNotificationPayload(_ userInfo: [AnyHashable: Any]) -> RemoteNotificationPayload {
+    /// - Parameter userInfo: The raw notification payload dictionary.
+    /// - Returns: A parsed RemoteNotificationPayload struct.
+    func parseNotificationPayload(_ userInfo: [AnyHashable: Any]) -> RemoteNotificationPayload {
         // Parse aps dictionary
         let aps = userInfo["aps"] as? [String: Any] ?? [:]
         let alert = aps["alert"] as? [String: Any]
@@ -221,7 +287,7 @@ class APNsManager: NSObject, ObservableObject {
     private func handleSilentNotification(payload: RemoteNotificationPayload, completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
         // If there's a session key, trigger a background sync
         if let sessionKey = payload.sessionKey {
-            print("[APNsManager] Silent notification for session: \(sessionKey)")
+            logger.info("Silent notification for session: \(sessionKey, privacy: .public)")
             
             // Notify observers about the background sync request
             NotificationCenter.default.post(
@@ -232,6 +298,32 @@ class APNsManager: NSObject, ObservableObject {
         }
         
         completionHandler(.newData)
+    }
+    
+    /// Handle notification tap - extracts deep link info and posts notification.
+    /// - Parameter payload: The parsed notification payload
+    func handleNotificationTap(_ payload: RemoteNotificationPayload) {
+        logger.info("Notification tapped: category=\(payload.category ?? "none", privacy: .public)")
+        
+        var userInfo: [String: Any] = [:]
+        
+        if let sessionKey = payload.sessionKey {
+            userInfo["sessionKey"] = sessionKey
+        }
+        
+        if let messageId = payload.messageId {
+            userInfo["messageId"] = messageId
+        }
+        
+        if let jobId = payload.jobId {
+            userInfo["jobId"] = jobId
+        }
+        
+        NotificationCenter.default.post(
+            name: .apnsNotificationTapped,
+            object: nil,
+            userInfo: userInfo
+        )
     }
     
     // MARK: - Errors
@@ -273,12 +365,50 @@ extension APNsManager {
     /// Call this from AppDelegate's application(_:didFinishLaunchingWithOptions:)
     /// to set up APNs registration on app launch.
     func applicationDidFinishLaunching() {
-        // Check if we have a token stored and re-register if needed
         Task { @MainActor in
-            // If we already have notification permission, register for APNs
-            if NotificationManager.shared.isAuthorized {
-                await requestRegistration()
-            }
+            // Always request registration on launch.
+            // This handles:
+            // 1. First launch - will request permission
+            // 2. Permission already granted - will register for remote notifications
+            // 3. Permission denied - will fail gracefully
+            await requestRegistration()
+            
+            // Set up connection state listener to re-register token when gateway connects
+            setupConnectionStateListener()
         }
+    }
+    
+    /// Set up a listener on gateway connection state to register token when connected.
+    private func setupConnectionStateListener() {
+        // Use Combine to observe connection status changes
+        let manager = GatewayDualConnectionManager.shared
+        
+        // Re-register token whenever gateway becomes connected
+        manager.$status
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] status in
+                guard let self = self else { return }
+                
+                // Check if we just became connected
+                if status.isConnected || status.isPartiallyConnected {
+                    // Only re-register if we have a token but haven't registered with gateway yet
+                    if self.deviceToken != nil && !self.isRegisteredWithGateway {
+                        Task {
+                            await self.registerTokenWithGateway()
+                        }
+                    }
+                } else {
+                    // Gateway disconnected, mark as not registered
+                    self.isRegisteredWithGateway = false
+                }
+            }
+            .store(in: &connectionCancellables)
+    }
+    
+    /// Cancellables for connection state observation
+    private static var _connectionCancellables: Set<AnyCancellable> = []
+    private var connectionCancellables: Set<AnyCancellable> {
+        get { Self._connectionCancellables }
+        set { Self._connectionCancellables = newValue }
     }
 }

@@ -548,6 +548,45 @@ class ClawdyViewModel: ObservableObject {
                 self.sendCommand(replyText)
             }
             .store(in: &cancellables)
+        
+        // Observe APNs notification taps.
+        // When user taps a remote notification, navigate to the relevant session/message.
+        NotificationCenter.default.publisher(for: .apnsNotificationTapped)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] notification in
+                guard let self = self else { return }
+                
+                let sessionKey = notification.userInfo?["sessionKey"] as? String
+                let messageId = notification.userInfo?["messageId"] as? String
+                
+                print("[ClawdyViewModel] APNs notification tapped: sessionKey=\(sessionKey ?? "nil"), messageId=\(messageId ?? "nil")")
+                
+                // Refresh chat history to show any new messages
+                Task {
+                    await self.loadGatewayHistory()
+                }
+                
+                // If there's a messageId, we could scroll to it in the future
+                // For now, refreshing history ensures the message is visible
+            }
+            .store(in: &cancellables)
+        
+        // Observe APNs background sync requests.
+        // When a silent notification requests sync, refresh chat history.
+        NotificationCenter.default.publisher(for: .apnsBackgroundSyncRequested)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] notification in
+                guard let self = self else { return }
+                
+                let sessionKey = notification.userInfo?["sessionKey"] as? String
+                print("[ClawdyViewModel] APNs background sync requested: sessionKey=\(sessionKey ?? "nil")")
+                
+                // Trigger history refresh via gateway connection
+                Task {
+                    await self.loadGatewayHistory()
+                }
+            }
+            .store(in: &cancellables)
     }
 
     func startRecording() {

@@ -62,17 +62,17 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        // For remote notifications, check if it's a chat notification
         let userInfo = notification.request.content.userInfo
+        
+        // Check if this is a remote notification
         if userInfo["aps"] != nil {
-            // This is a remote notification
-            // Show it as a banner even in foreground for important messages
-            let clawdy = userInfo["clawdy"] as? [String: Any] ?? [:]
-            if clawdy["sessionKey"] != nil {
-                // Agent message - show in foreground
-                completionHandler([.banner, .sound])
-                return
+            // Parse the payload and get presentation options from APNsManager
+            Task { @MainActor in
+                let payload = APNsManager.shared.parseNotificationPayload(userInfo)
+                let options = APNsManager.shared.foregroundPresentationOptions(for: payload)
+                completionHandler(options)
             }
+            return
         }
         
         // For local notifications, defer to NotificationManager's behavior
@@ -96,32 +96,17 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         
         // Check if this is a remote notification
         if userInfo["aps"] != nil {
-            // Handle remote notification tap
-            let clawdy = userInfo["clawdy"] as? [String: Any] ?? [:]
-            if let sessionKey = clawdy["sessionKey"] as? String {
-                // Post notification to navigate to the session
-                NotificationCenter.default.post(
-                    name: .apnsNotificationTapped,
-                    object: nil,
-                    userInfo: ["sessionKey": sessionKey]
-                )
+            // Handle remote notification tap via APNsManager
+            Task { @MainActor in
+                let payload = APNsManager.shared.parseNotificationPayload(userInfo)
+                APNsManager.shared.handleNotificationTap(payload)
             }
             completionHandler()
             return
         }
         
-        // Handle local notification actions (e.g., reply)
-        if response.actionIdentifier == NotificationManager.replyAction,
-           let textResponse = response as? UNTextInputNotificationResponse {
-            let replyText = textResponse.userText
-            print("[AppDelegate] User replied: \(replyText)")
-            
-            NotificationCenter.default.post(
-                name: .chatPushReplyReceived,
-                object: nil,
-                userInfo: ["text": replyText]
-            )
-        }
+        // Handle local notification via NotificationManager
+        NotificationManager.shared.handleNotificationResponse(response)
         
         completionHandler()
     }

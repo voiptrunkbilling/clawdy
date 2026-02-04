@@ -32,7 +32,10 @@ class NotificationManager: NSObject {
     
     private override init() {
         super.init()
-        notificationCenter.delegate = self
+        // Note: We do NOT set ourselves as the notification delegate here.
+        // AppDelegate is the single delegate for UNUserNotificationCenter to ensure
+        // APNs callbacks are properly invoked for remote notifications.
+        // Local notification logic is handled via AppDelegate forwarding.
         
         // Check current authorization status on init
         Task {
@@ -232,31 +235,25 @@ class NotificationManager: NSObject {
     }
 }
 
-// MARK: - UNUserNotificationCenterDelegate
+// MARK: - Local Notification Handling (called from AppDelegate)
 
-extension NotificationManager: UNUserNotificationCenterDelegate {
-    /// Handle notification when app is in foreground.
-    /// We don't show chat push notifications in foreground since the message is already visible.
-    nonisolated func userNotificationCenter(
-        _ center: UNUserNotificationCenter,
-        willPresent notification: UNNotification,
-        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
-    ) {
+extension NotificationManager {
+    /// Check if a local notification should be shown in foreground.
+    /// Called by AppDelegate when it receives a local notification.
+    /// - Returns: Presentation options for the notification.
+    nonisolated func foregroundPresentationOptions(for notification: UNNotification) -> UNNotificationPresentationOptions {
         // Don't show chat push notifications in foreground (message is already in chat)
         if notification.request.content.categoryIdentifier == Self.chatPushCategory {
-            completionHandler([])
+            return []
         } else {
             // Show other notifications (system.notify) even in foreground
-            completionHandler([.banner, .sound, .badge])
+            return [.banner, .sound, .badge]
         }
     }
     
-    /// Handle notification tap or action.
-    nonisolated func userNotificationCenter(
-        _ center: UNUserNotificationCenter,
-        didReceive response: UNNotificationResponse,
-        withCompletionHandler completionHandler: @escaping () -> Void
-    ) {
+    /// Handle local notification response (tap or action).
+    /// Called by AppDelegate when user interacts with a local notification.
+    nonisolated func handleNotificationResponse(_ response: UNNotificationResponse) {
         let userInfo = response.notification.request.content.userInfo
         
         // Handle reply action
@@ -280,8 +277,6 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
                 // App will open and show the chat - no additional action needed
             }
         }
-        
-        completionHandler()
     }
 }
 

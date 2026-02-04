@@ -199,6 +199,9 @@ class GatewayDualConnectionManager: ObservableObject {
     /// Callback for parsed chat/agent events from the gateway
     var onChatEvent: (@Sendable (GatewayChatEvent) -> Void)?
     
+    /// Callback for context preferences updated from another device
+    var onContextUpdated: (@Sendable (UserContextPreferences) -> Void)?
+    
     /// Session key for chat events
     var chatSessionKey: String = "agent:main:main"
     
@@ -740,10 +743,44 @@ class GatewayDualConnectionManager: ObservableObject {
     
     /// Handle chat events from the operator connection.
     private func handleChatEvent(_ event: GatewayEvent) async {
+        // Handle context.updated broadcast from another device
+        if event.event == "context.updated" {
+            await handleContextUpdated(event.payload)
+            return
+        }
+        
         guard let chatEvent = convertToChatEvent(event) else { return }
         
         await MainActor.run {
             onChatEvent?(chatEvent)
+        }
+    }
+    
+    /// Handle context preferences updated from another device.
+    private func handleContextUpdated(_ payload: [String: Any]?) async {
+        guard let payload = payload,
+              let preferencesDict = payload["preferences"] as? [String: Any] else {
+            return
+        }
+        
+        // Decode preferences from dictionary
+        do {
+            let data = try JSONSerialization.data(withJSONObject: preferencesDict)
+            let preferences = try JSONDecoder().decode(UserContextPreferences.self, from: data)
+            
+            // Skip if this is our own update (same deviceId)
+            let identity = DeviceIdentityStore.loadOrCreate()
+            if preferences.deviceId == identity.deviceId {
+                return
+            }
+            
+            logger.info("Received context.updated from device: \(preferences.deviceId)")
+            
+            await MainActor.run {
+                onContextUpdated?(preferences)
+            }
+        } catch {
+            logger.error("Failed to decode context.updated payload: \(error.localizedDescription)")
         }
     }
     
@@ -912,6 +949,23 @@ class GatewayDualConnectionManager: ObservableObject {
         
         let params: [String: Any] = ["sessionKey": chatSessionKey]
         _ = try await connection.request(method: "chat.abort", params: params, timeoutMs: 5000)
+    }
+    
+    // MARK: - Generic RPC Operations
+    
+    /// Send a generic RPC request via the operator connection.
+    /// - Parameters:
+    ///   - method: RPC method name (e.g., "context.get", "context.update")
+    ///   - params: Request parameters (optional)
+    ///   - timeoutMs: Timeout in milliseconds (default 15000)
+    /// - Returns: Response payload as Data
+    func request(method: String, params: [String: Any]?, timeoutMs: Double = 15000) async throws -> Data {
+        guard let connection = operatorConnection,
+              await connection.isConnected else {
+            throw GatewayError.notConnected
+        }
+        
+        return try await connection.request(method: method, params: params, timeoutMs: timeoutMs)
     }
     
     // MARK: - Node Operations (via Node Connection)
