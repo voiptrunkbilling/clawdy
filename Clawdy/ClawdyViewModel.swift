@@ -363,6 +363,9 @@ class ClawdyViewModel: ObservableObject {
     /// Suppress gateway finalization after a user-initiated cancel/interrupt
     private var suppressGatewayFinalization = false
     
+    /// Pending calendar delete confirmation tokens, keyed by eventId
+    private var pendingDeleteTokens: [String: String] = [:]
+    
     /// Incremental TTS manager for streaming speech
     private let incrementalTTS = IncrementalTTSManager()
 
@@ -2003,5 +2006,280 @@ class ClawdyViewModel: ObservableObject {
             }
         }
         nodeCapabilityHandler.onSystemNotify = systemNotifyHandler
+        
+        // MARK: - Calendar Handlers
+        
+        // calendar.create - Create a calendar event
+        let calendarCreateHandler: (CalendarCreateParams) async -> CalendarCreateResult = { params in
+            print("[NodeCapabilityHandler] calendar.create invoked - title: \(params.title)")
+            
+            let service = await CalendarService.shared
+            
+            // Check authorization
+            guard await service.isAuthorized else {
+                let granted = await service.requestAuthorization()
+                if !granted {
+                    return .failed("Calendar access not authorized")
+                }
+            }
+            
+            // Parse ISO 8601 dates
+            let isoFormatter = ISO8601DateFormatter()
+            guard let startDate = isoFormatter.date(from: params.startDate) else {
+                return .failed("Invalid startDate format (expected ISO 8601)")
+            }
+            guard let endDate = isoFormatter.date(from: params.endDate) else {
+                return .failed("Invalid endDate format (expected ISO 8601)")
+            }
+            
+            // Resolve calendar by identifier if provided
+            var targetCalendar: EKCalendar? = nil
+            if let calendarId = params.calendarId {
+                targetCalendar = await service.getCalendar(byIdentifier: calendarId)
+                if targetCalendar == nil {
+                    return .failed("Calendar not found for identifier: \(calendarId)")
+                }
+            }
+            
+            do {
+                let eventId = try await service.createEvent(
+                    title: params.title,
+                    startDate: startDate,
+                    endDate: endDate,
+                    notes: params.notes,
+                    calendar: targetCalendar
+                )
+                if let id = eventId {
+                    return .success(eventId: id)
+                } else {
+                    return .failed("Failed to create event")
+                }
+            } catch {
+                return .failed(error.localizedDescription)
+            }
+        }
+        nodeCapabilityHandler.onCalendarCreate = calendarCreateHandler
+        
+        // calendar.read - Read calendar events
+        let calendarReadHandler: (CalendarReadParams) async -> CalendarReadResult = { params in
+            print("[NodeCapabilityHandler] calendar.read invoked")
+            
+            let service = await CalendarService.shared
+            
+            // Check authorization
+            guard await service.isAuthorized else {
+                return .failed("Calendar access not authorized")
+            }
+            
+            // Parse ISO 8601 dates
+            let isoFormatter = ISO8601DateFormatter()
+            guard let startDate = isoFormatter.date(from: params.startDate) else {
+                return .failed("Invalid startDate format (expected ISO 8601)")
+            }
+            guard let endDate = isoFormatter.date(from: params.endDate) else {
+                return .failed("Invalid endDate format (expected ISO 8601)")
+            }
+            
+            // Resolve calendar by identifier if provided
+            var targetCalendars: [EKCalendar]? = nil
+            if let calendarId = params.calendarId {
+                if let calendar = await service.getCalendar(byIdentifier: calendarId) {
+                    targetCalendars = [calendar]
+                } else {
+                    return .failed("Calendar not found for identifier: \(calendarId)")
+                }
+            }
+            
+            let events = await service.getEvents(from: startDate, to: endDate, calendars: targetCalendars)
+            
+            let eventInfos = events.map { event -> CalendarEventInfo in
+                CalendarEventInfo(
+                    eventId: event.eventIdentifier,
+                    title: event.title ?? "",
+                    startDate: isoFormatter.string(from: event.startDate),
+                    endDate: isoFormatter.string(from: event.endDate),
+                    notes: event.notes,
+                    calendarId: event.calendar.calendarIdentifier,
+                    calendarTitle: event.calendar.title
+                )
+            }
+            
+            return .success(events: eventInfos)
+        }
+        nodeCapabilityHandler.onCalendarRead = calendarReadHandler
+        
+        // calendar.update - Update a calendar event
+        let calendarUpdateHandler: (CalendarUpdateParams) async -> CalendarUpdateResult = { params in
+            print("[NodeCapabilityHandler] calendar.update invoked - eventId: \(params.eventId)")
+            
+            let service = await CalendarService.shared
+            
+            // Check authorization
+            guard await service.isAuthorized else {
+                return .failed("Calendar access not authorized")
+            }
+            
+            // Parse optional ISO 8601 dates
+            let isoFormatter = ISO8601DateFormatter()
+            var startDate: Date? = nil
+            var endDate: Date? = nil
+            
+            if let startStr = params.startDate {
+                startDate = isoFormatter.date(from: startStr)
+                if startDate == nil {
+                    return .failed("Invalid startDate format (expected ISO 8601)")
+                }
+            }
+            
+            if let endStr = params.endDate {
+                endDate = isoFormatter.date(from: endStr)
+                if endDate == nil {
+                    return .failed("Invalid endDate format (expected ISO 8601)")
+                }
+            }
+            
+            do {
+                try await service.updateEvent(
+                    eventId: params.eventId,
+                    title: params.title,
+                    startDate: startDate,
+                    endDate: endDate,
+                    notes: params.notes
+                )
+                return .success
+            } catch {
+                return .failed(error.localizedDescription)
+            }
+        }
+        nodeCapabilityHandler.onCalendarUpdate = calendarUpdateHandler
+        
+        // calendar.delete - Delete a calendar event
+        // Requires confirmation token for safety (destructive operation)
+        let calendarDeleteHandler: (CalendarDeleteParams) async -> CalendarDeleteResult = { [weak self] params in
+            print("[NodeCapabilityHandler] calendar.delete invoked - eventId: \(params.eventId)")
+            
+            let service = await CalendarService.shared
+            
+            // Check authorization
+            guard await service.isAuthorized else {
+                return .failed("Calendar access not authorized")
+            }
+            
+            // Validate confirmation token
+            if let providedToken = params.confirmationToken {
+                // Verify the token matches what we generated for this eventId
+                let storedToken = await MainActor.run { self?.pendingDeleteTokens[params.eventId] }
+                guard storedToken == providedToken else {
+                    return .failed("Invalid confirmation token")
+                }
+                
+                // Token valid, proceed with delete
+                do {
+                    try await service.deleteEvent(eventId: params.eventId)
+                    // Clear the token after successful delete
+                    await MainActor.run { _ = self?.pendingDeleteTokens.removeValue(forKey: params.eventId) }
+                    return .success
+                } catch {
+                    return .failed(error.localizedDescription)
+                }
+            } else {
+                // No token provided, generate and store one
+                let token = UUID().uuidString
+                await MainActor.run { self?.pendingDeleteTokens[params.eventId] = token }
+                return .requiresConfirmation(token: token)
+            }
+        }
+        nodeCapabilityHandler.onCalendarDelete = calendarDeleteHandler
+        
+        // MARK: - Contacts Handlers
+        
+        // contacts.search - Search contacts by name
+        let contactsSearchHandler: (ContactsSearchParams) async -> ContactsSearchResult = { params in
+            print("[NodeCapabilityHandler] contacts.search invoked - query: \(params.query)")
+            
+            let service = await ContactsService.shared
+            
+            // Check authorization
+            guard await service.isAuthorized else {
+                let granted = await service.requestAuthorization()
+                if !granted {
+                    return .failed("Contacts access not authorized")
+                }
+            }
+            
+            do {
+                let contacts = try await service.searchContacts(name: params.query)
+                
+                let contactInfos = contacts.map { contact -> ContactInfo in
+                    ContactInfo(
+                        contactId: contact.identifier,
+                        givenName: contact.givenName,
+                        familyName: contact.familyName,
+                        phoneNumbers: contact.phoneNumbers.map { $0.value.stringValue },
+                        emails: contact.emailAddresses.map { $0.value as String },
+                        organization: contact.organizationName.isEmpty ? nil : contact.organizationName
+                    )
+                }
+                
+                return .success(contacts: contactInfos)
+            } catch {
+                return .failed(error.localizedDescription)
+            }
+        }
+        nodeCapabilityHandler.onContactsSearch = contactsSearchHandler
+        
+        // contacts.create - Create a new contact
+        let contactsCreateHandler: (ContactsCreateParams) async -> ContactsCreateResult = { params in
+            print("[NodeCapabilityHandler] contacts.create invoked - \(params.givenName) \(params.familyName)")
+            
+            let service = await ContactsService.shared
+            
+            // Check authorization
+            guard await service.isAuthorized else {
+                let granted = await service.requestAuthorization()
+                if !granted {
+                    return .failed("Contacts access not authorized")
+                }
+            }
+            
+            do {
+                let contactId = try await service.createContact(
+                    givenName: params.givenName,
+                    familyName: params.familyName,
+                    phoneNumber: params.phoneNumber,
+                    email: params.email
+                )
+                return .success(contactId: contactId)
+            } catch {
+                return .failed(error.localizedDescription)
+            }
+        }
+        nodeCapabilityHandler.onContactsCreate = contactsCreateHandler
+        
+        // contacts.update - Update an existing contact
+        let contactsUpdateHandler: (ContactsUpdateParams) async -> ContactsUpdateResult = { params in
+            print("[NodeCapabilityHandler] contacts.update invoked - contactId: \(params.contactId)")
+            
+            let service = await ContactsService.shared
+            
+            // Check authorization
+            guard await service.isAuthorized else {
+                return .failed("Contacts access not authorized")
+            }
+            
+            do {
+                try await service.updateContact(
+                    contactId: params.contactId,
+                    givenName: params.givenName,
+                    familyName: params.familyName,
+                    phoneNumber: params.phoneNumber,
+                    email: params.email
+                )
+                return .success
+            } catch {
+                return .failed(error.localizedDescription)
+            }
+        }
+        nodeCapabilityHandler.onContactsUpdate = contactsUpdateHandler
     }
 }

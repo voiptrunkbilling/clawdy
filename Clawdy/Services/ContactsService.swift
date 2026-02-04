@@ -134,6 +134,82 @@ class ContactsService: ObservableObject {
         return contact.identifier
     }
     
+    /// Update an existing contact.
+    /// - Parameters:
+    ///   - contactId: The contact identifier to update
+    ///   - givenName: New first name (nil to keep existing)
+    ///   - familyName: New last name (nil to keep existing)
+    ///   - phoneNumber: New phone number (nil to keep existing)
+    ///   - email: New email address (nil to keep existing)
+    func updateContact(contactId: String, givenName: String? = nil, familyName: String? = nil, phoneNumber: String? = nil, email: String? = nil) throws {
+        guard isAuthorized else {
+            throw ContactsError.notAuthorized
+        }
+        
+        // Fetch the contact with mutable keys
+        let keysToFetch: [CNKeyDescriptor] = [
+            CNContactGivenNameKey as CNKeyDescriptor,
+            CNContactFamilyNameKey as CNKeyDescriptor,
+            CNContactPhoneNumbersKey as CNKeyDescriptor,
+            CNContactEmailAddressesKey as CNKeyDescriptor,
+        ]
+        
+        let predicate = CNContact.predicateForContacts(withIdentifiers: [contactId])
+        let contacts = try contactStore.unifiedContacts(matching: predicate, keysToFetch: keysToFetch)
+        
+        guard let contact = contacts.first else {
+            throw ContactsError.contactNotFound
+        }
+        
+        // Create mutable copy
+        let mutableContact = contact.mutableCopy() as! CNMutableContact
+        
+        if let newGivenName = givenName {
+            mutableContact.givenName = newGivenName
+        }
+        if let newFamilyName = familyName {
+            mutableContact.familyName = newFamilyName
+        }
+        if let newPhone = phoneNumber {
+            mutableContact.phoneNumbers = [CNLabeledValue(label: CNLabelPhoneNumberMain, value: CNPhoneNumber(stringValue: newPhone))]
+        }
+        if let newEmail = email {
+            mutableContact.emailAddresses = [CNLabeledValue(label: CNLabelWork, value: newEmail as NSString)]
+        }
+        
+        let saveRequest = CNSaveRequest()
+        saveRequest.update(mutableContact)
+        
+        do {
+            try contactStore.execute(saveRequest)
+            print("[ContactsService] Updated contact: \(mutableContact.givenName) \(mutableContact.familyName)")
+        } catch {
+            throw ContactsError.saveFailed(error)
+        }
+    }
+    
+    /// Get a contact by identifier.
+    /// - Parameter contactId: The contact identifier
+    /// - Returns: The contact if found, nil otherwise
+    func getContact(contactId: String) throws -> CNContact? {
+        guard isAuthorized else {
+            throw ContactsError.notAuthorized
+        }
+        
+        let keysToFetch: [CNKeyDescriptor] = [
+            CNContactGivenNameKey as CNKeyDescriptor,
+            CNContactFamilyNameKey as CNKeyDescriptor,
+            CNContactPhoneNumbersKey as CNKeyDescriptor,
+            CNContactEmailAddressesKey as CNKeyDescriptor,
+            CNContactOrganizationNameKey as CNKeyDescriptor,
+        ]
+        
+        let predicate = CNContact.predicateForContacts(withIdentifiers: [contactId])
+        let contacts = try contactStore.unifiedContacts(matching: predicate, keysToFetch: keysToFetch)
+        
+        return contacts.first
+    }
+    
     // MARK: - Errors
     
     enum ContactsError: LocalizedError {

@@ -70,6 +70,14 @@ class CalendarService: ObservableObject {
         return eventStore.calendars(for: .event)
     }
     
+    /// Get a calendar by its identifier.
+    /// - Parameter identifier: The calendar identifier
+    /// - Returns: The calendar if found
+    func getCalendar(byIdentifier identifier: String) -> EKCalendar? {
+        guard isAuthorized else { return nil }
+        return eventStore.calendar(withIdentifier: identifier)
+    }
+    
     /// Get events within a date range.
     func getEvents(from startDate: Date, to endDate: Date, calendars: [EKCalendar]? = nil) -> [EKEvent] {
         guard isAuthorized else { return [] }
@@ -101,6 +109,70 @@ class CalendarService: ObservableObject {
         try eventStore.save(event, span: .thisEvent)
         print("[CalendarService] Created event: \(title)")
         return event.eventIdentifier
+    }
+    
+    /// Update an existing event.
+    /// - Parameters:
+    ///   - eventId: The event identifier to update
+    ///   - title: New title (nil to keep existing)
+    ///   - startDate: New start date (nil to keep existing)
+    ///   - endDate: New end date (nil to keep existing)
+    ///   - notes: New notes (nil to keep existing)
+    func updateEvent(eventId: String, title: String? = nil, startDate: Date? = nil, endDate: Date? = nil, notes: String? = nil) throws {
+        guard isAuthorized else {
+            throw CalendarError.notAuthorized
+        }
+        
+        guard let event = eventStore.event(withIdentifier: eventId) else {
+            throw CalendarError.eventNotFound
+        }
+        
+        if let newTitle = title {
+            event.title = newTitle
+        }
+        if let newStart = startDate {
+            event.startDate = newStart
+        }
+        if let newEnd = endDate {
+            event.endDate = newEnd
+        }
+        if let newNotes = notes {
+            event.notes = newNotes
+        }
+        
+        do {
+            try eventStore.save(event, span: .thisEvent)
+            print("[CalendarService] Updated event: \(event.title ?? eventId)")
+        } catch {
+            throw CalendarError.saveFailed(error)
+        }
+    }
+    
+    /// Delete an event.
+    /// - Parameter eventId: The event identifier to delete
+    func deleteEvent(eventId: String) throws {
+        guard isAuthorized else {
+            throw CalendarError.notAuthorized
+        }
+        
+        guard let event = eventStore.event(withIdentifier: eventId) else {
+            throw CalendarError.eventNotFound
+        }
+        
+        do {
+            try eventStore.remove(event, span: .thisEvent)
+            print("[CalendarService] Deleted event: \(event.title ?? eventId)")
+        } catch {
+            throw CalendarError.saveFailed(error)
+        }
+    }
+    
+    /// Get a single event by identifier.
+    /// - Parameter eventId: The event identifier
+    /// - Returns: The event if found
+    func getEvent(eventId: String) -> EKEvent? {
+        guard isAuthorized else { return nil }
+        return eventStore.event(withIdentifier: eventId)
     }
     
     // MARK: - Errors

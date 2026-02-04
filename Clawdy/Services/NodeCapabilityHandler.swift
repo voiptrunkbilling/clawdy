@@ -17,6 +17,13 @@ import UIKit
 /// | camera.clip     | Record a video clip                  |
 /// | location.get    | Get current GPS location             |
 /// | system.notify   | Show a local notification            |
+/// | calendar.create | Create a calendar event              |
+/// | calendar.read   | Read calendar events                 |
+/// | calendar.update | Update a calendar event              |
+/// | calendar.delete | Delete a calendar event              |
+/// | contacts.search | Search contacts                      |
+/// | contacts.create | Create a contact                     |
+/// | contacts.update | Update a contact                     |
 @MainActor
 class NodeCapabilityHandler {
     // MARK: - Capability Handler Types
@@ -40,6 +47,31 @@ class NodeCapabilityHandler {
     /// Handler for system.notify capability - shows a notification
     /// Returns result indicating success, permission denied, or error
     var onSystemNotify: ((_ params: SystemNotifyParams) async -> SystemNotifyResult)?
+    
+    // MARK: - Calendar Handlers
+    
+    /// Handler for calendar.create capability - creates a calendar event
+    var onCalendarCreate: ((_ params: CalendarCreateParams) async -> CalendarCreateResult)?
+    
+    /// Handler for calendar.read capability - reads calendar events
+    var onCalendarRead: ((_ params: CalendarReadParams) async -> CalendarReadResult)?
+    
+    /// Handler for calendar.update capability - updates a calendar event
+    var onCalendarUpdate: ((_ params: CalendarUpdateParams) async -> CalendarUpdateResult)?
+    
+    /// Handler for calendar.delete capability - deletes a calendar event
+    var onCalendarDelete: ((_ params: CalendarDeleteParams) async -> CalendarDeleteResult)?
+    
+    // MARK: - Contacts Handlers
+    
+    /// Handler for contacts.search capability - searches contacts
+    var onContactsSearch: ((_ params: ContactsSearchParams) async -> ContactsSearchResult)?
+    
+    /// Handler for contacts.create capability - creates a contact
+    var onContactsCreate: ((_ params: ContactsCreateParams) async -> ContactsCreateResult)?
+    
+    /// Handler for contacts.update capability - updates a contact
+    var onContactsUpdate: ((_ params: ContactsUpdateParams) async -> ContactsUpdateResult)?
     
     // MARK: - JSON Coding
     
@@ -80,6 +112,27 @@ class NodeCapabilityHandler {
             
         case "system.notify":
             return await handleSystemNotify(request: request)
+            
+        case "calendar.create":
+            return await handleCalendarCreate(request: request)
+            
+        case "calendar.read":
+            return await handleCalendarRead(request: request)
+            
+        case "calendar.update":
+            return await handleCalendarUpdate(request: request)
+            
+        case "calendar.delete":
+            return await handleCalendarDelete(request: request)
+            
+        case "contacts.search":
+            return await handleContactsSearch(request: request)
+            
+        case "contacts.create":
+            return await handleContactsCreate(request: request)
+            
+        case "contacts.update":
+            return await handleContactsUpdate(request: request)
             
         default:
             return makeErrorResponse(
@@ -295,6 +348,206 @@ class NodeCapabilityHandler {
         return makeSuccessResponse(id: request.id, payload: result)
     }
     
+    // MARK: - Calendar Handlers
+    
+    private func handleCalendarCreate(request: BridgeInvokeRequest) async -> BridgeInvokeResponse {
+        guard let paramsJSON = request.paramsJSON,
+              let paramsData = paramsJSON.data(using: .utf8),
+              let params = try? decoder.decode(CalendarCreateParams.self, from: paramsData) else {
+            return makeErrorResponse(
+                id: request.id,
+                code: .invalidRequest,
+                message: "Invalid calendar.create params: expected {title: string, startDate: string, endDate: string, notes?: string, calendarId?: string}"
+            )
+        }
+        
+        guard let handler = onCalendarCreate else {
+            return makeErrorResponse(
+                id: request.id,
+                code: .unavailable,
+                message: "calendar.create handler not registered"
+            )
+        }
+        
+        let result = await handler(params)
+        
+        if let error = result.error {
+            return makeErrorResponse(id: request.id, code: .unavailable, message: error)
+        }
+        
+        return makeSuccessResponse(id: request.id, payload: result)
+    }
+    
+    private func handleCalendarRead(request: BridgeInvokeRequest) async -> BridgeInvokeResponse {
+        guard let paramsJSON = request.paramsJSON,
+              let paramsData = paramsJSON.data(using: .utf8),
+              let params = try? decoder.decode(CalendarReadParams.self, from: paramsData) else {
+            return makeErrorResponse(
+                id: request.id,
+                code: .invalidRequest,
+                message: "Invalid calendar.read params: expected {startDate: string, endDate: string, calendarId?: string}"
+            )
+        }
+        
+        guard let handler = onCalendarRead else {
+            return makeErrorResponse(
+                id: request.id,
+                code: .unavailable,
+                message: "calendar.read handler not registered"
+            )
+        }
+        
+        let result = await handler(params)
+        
+        if let error = result.error {
+            return makeErrorResponse(id: request.id, code: .unavailable, message: error)
+        }
+        
+        return makeSuccessResponse(id: request.id, payload: result)
+    }
+    
+    private func handleCalendarUpdate(request: BridgeInvokeRequest) async -> BridgeInvokeResponse {
+        guard let paramsJSON = request.paramsJSON,
+              let paramsData = paramsJSON.data(using: .utf8),
+              let params = try? decoder.decode(CalendarUpdateParams.self, from: paramsData) else {
+            return makeErrorResponse(
+                id: request.id,
+                code: .invalidRequest,
+                message: "Invalid calendar.update params: expected {eventId: string, title?: string, startDate?: string, endDate?: string, notes?: string}"
+            )
+        }
+        
+        guard let handler = onCalendarUpdate else {
+            return makeErrorResponse(
+                id: request.id,
+                code: .unavailable,
+                message: "calendar.update handler not registered"
+            )
+        }
+        
+        let result = await handler(params)
+        
+        if let error = result.error {
+            return makeErrorResponse(id: request.id, code: .unavailable, message: error)
+        }
+        
+        return makeSuccessResponse(id: request.id, payload: result)
+    }
+    
+    private func handleCalendarDelete(request: BridgeInvokeRequest) async -> BridgeInvokeResponse {
+        guard let paramsJSON = request.paramsJSON,
+              let paramsData = paramsJSON.data(using: .utf8),
+              let params = try? decoder.decode(CalendarDeleteParams.self, from: paramsData) else {
+            return makeErrorResponse(
+                id: request.id,
+                code: .invalidRequest,
+                message: "Invalid calendar.delete params: expected {eventId: string, confirmationToken?: string}"
+            )
+        }
+        
+        guard let handler = onCalendarDelete else {
+            return makeErrorResponse(
+                id: request.id,
+                code: .unavailable,
+                message: "calendar.delete handler not registered"
+            )
+        }
+        
+        let result = await handler(params)
+        
+        if let error = result.error {
+            return makeErrorResponse(id: request.id, code: .unavailable, message: error)
+        }
+        
+        return makeSuccessResponse(id: request.id, payload: result)
+    }
+    
+    // MARK: - Contacts Handlers
+    
+    private func handleContactsSearch(request: BridgeInvokeRequest) async -> BridgeInvokeResponse {
+        guard let paramsJSON = request.paramsJSON,
+              let paramsData = paramsJSON.data(using: .utf8),
+              let params = try? decoder.decode(ContactsSearchParams.self, from: paramsData) else {
+            return makeErrorResponse(
+                id: request.id,
+                code: .invalidRequest,
+                message: "Invalid contacts.search params: expected {query: string}"
+            )
+        }
+        
+        guard let handler = onContactsSearch else {
+            return makeErrorResponse(
+                id: request.id,
+                code: .unavailable,
+                message: "contacts.search handler not registered"
+            )
+        }
+        
+        let result = await handler(params)
+        
+        if let error = result.error {
+            return makeErrorResponse(id: request.id, code: .unavailable, message: error)
+        }
+        
+        return makeSuccessResponse(id: request.id, payload: result)
+    }
+    
+    private func handleContactsCreate(request: BridgeInvokeRequest) async -> BridgeInvokeResponse {
+        guard let paramsJSON = request.paramsJSON,
+              let paramsData = paramsJSON.data(using: .utf8),
+              let params = try? decoder.decode(ContactsCreateParams.self, from: paramsData) else {
+            return makeErrorResponse(
+                id: request.id,
+                code: .invalidRequest,
+                message: "Invalid contacts.create params: expected {givenName: string, familyName: string, phoneNumber?: string, email?: string}"
+            )
+        }
+        
+        guard let handler = onContactsCreate else {
+            return makeErrorResponse(
+                id: request.id,
+                code: .unavailable,
+                message: "contacts.create handler not registered"
+            )
+        }
+        
+        let result = await handler(params)
+        
+        if let error = result.error {
+            return makeErrorResponse(id: request.id, code: .unavailable, message: error)
+        }
+        
+        return makeSuccessResponse(id: request.id, payload: result)
+    }
+    
+    private func handleContactsUpdate(request: BridgeInvokeRequest) async -> BridgeInvokeResponse {
+        guard let paramsJSON = request.paramsJSON,
+              let paramsData = paramsJSON.data(using: .utf8),
+              let params = try? decoder.decode(ContactsUpdateParams.self, from: paramsData) else {
+            return makeErrorResponse(
+                id: request.id,
+                code: .invalidRequest,
+                message: "Invalid contacts.update params: expected {contactId: string, givenName?: string, familyName?: string, phoneNumber?: string, email?: string}"
+            )
+        }
+        
+        guard let handler = onContactsUpdate else {
+            return makeErrorResponse(
+                id: request.id,
+                code: .unavailable,
+                message: "contacts.update handler not registered"
+            )
+        }
+        
+        let result = await handler(params)
+        
+        if let error = result.error {
+            return makeErrorResponse(id: request.id, code: .unavailable, message: error)
+        }
+        
+        return makeSuccessResponse(id: request.id, payload: result)
+    }
+    
     // MARK: - Response Helpers
     
     private func makeSuccessResponse<T: Codable>(id: String, payload: T) -> BridgeInvokeResponse {
@@ -447,5 +700,181 @@ struct SystemNotifyResult: Codable {
     static let permissionDenied = SystemNotifyResult(scheduled: false, permissionDenied: true, error: nil)
     static func failed(_ message: String) -> SystemNotifyResult {
         SystemNotifyResult(scheduled: false, permissionDenied: false, error: message)
+    }
+}
+
+// MARK: - Calendar Capability Types
+
+/// Parameters for calendar.create capability
+struct CalendarCreateParams: Codable {
+    let title: String
+    let startDate: String  // ISO 8601 format
+    let endDate: String    // ISO 8601 format
+    let notes: String?
+    let calendarId: String?
+}
+
+/// Result of calendar.create capability
+struct CalendarCreateResult: Codable {
+    let eventId: String?
+    let error: String?
+    
+    static func success(eventId: String) -> CalendarCreateResult {
+        CalendarCreateResult(eventId: eventId, error: nil)
+    }
+    
+    static func failed(_ message: String) -> CalendarCreateResult {
+        CalendarCreateResult(eventId: nil, error: message)
+    }
+}
+
+/// Parameters for calendar.read capability
+struct CalendarReadParams: Codable {
+    let startDate: String  // ISO 8601 format
+    let endDate: String    // ISO 8601 format
+    let calendarId: String?
+}
+
+/// Result of calendar.read capability
+struct CalendarReadResult: Codable {
+    let events: [CalendarEventInfo]
+    let error: String?
+    
+    static func success(events: [CalendarEventInfo]) -> CalendarReadResult {
+        CalendarReadResult(events: events, error: nil)
+    }
+    
+    static func failed(_ message: String) -> CalendarReadResult {
+        CalendarReadResult(events: [], error: message)
+    }
+}
+
+/// Information about a calendar event
+struct CalendarEventInfo: Codable {
+    let eventId: String
+    let title: String
+    let startDate: String  // ISO 8601 format
+    let endDate: String    // ISO 8601 format
+    let notes: String?
+    let calendarId: String
+    let calendarTitle: String
+}
+
+/// Parameters for calendar.update capability
+struct CalendarUpdateParams: Codable {
+    let eventId: String
+    let title: String?
+    let startDate: String?  // ISO 8601 format
+    let endDate: String?    // ISO 8601 format
+    let notes: String?
+}
+
+/// Result of calendar.update capability
+struct CalendarUpdateResult: Codable {
+    let updated: Bool
+    let error: String?
+    
+    static let success = CalendarUpdateResult(updated: true, error: nil)
+    
+    static func failed(_ message: String) -> CalendarUpdateResult {
+        CalendarUpdateResult(updated: false, error: message)
+    }
+}
+
+/// Parameters for calendar.delete capability
+struct CalendarDeleteParams: Codable {
+    let eventId: String
+    let confirmationToken: String?  // Required for destructive operations
+}
+
+/// Result of calendar.delete capability
+struct CalendarDeleteResult: Codable {
+    let deleted: Bool
+    let requiresConfirmation: Bool
+    let confirmationToken: String?
+    let error: String?
+    
+    static let success = CalendarDeleteResult(deleted: true, requiresConfirmation: false, confirmationToken: nil, error: nil)
+    
+    static func requiresConfirmation(token: String) -> CalendarDeleteResult {
+        CalendarDeleteResult(deleted: false, requiresConfirmation: true, confirmationToken: token, error: nil)
+    }
+    
+    static func failed(_ message: String) -> CalendarDeleteResult {
+        CalendarDeleteResult(deleted: false, requiresConfirmation: false, confirmationToken: nil, error: message)
+    }
+}
+
+// MARK: - Contacts Capability Types
+
+/// Parameters for contacts.search capability
+struct ContactsSearchParams: Codable {
+    let query: String
+}
+
+/// Result of contacts.search capability
+struct ContactsSearchResult: Codable {
+    let contacts: [ContactInfo]
+    let error: String?
+    
+    static func success(contacts: [ContactInfo]) -> ContactsSearchResult {
+        ContactsSearchResult(contacts: contacts, error: nil)
+    }
+    
+    static func failed(_ message: String) -> ContactsSearchResult {
+        ContactsSearchResult(contacts: [], error: message)
+    }
+}
+
+/// Information about a contact
+struct ContactInfo: Codable {
+    let contactId: String
+    let givenName: String
+    let familyName: String
+    let phoneNumbers: [String]
+    let emails: [String]
+    let organization: String?
+}
+
+/// Parameters for contacts.create capability
+struct ContactsCreateParams: Codable {
+    let givenName: String
+    let familyName: String
+    let phoneNumber: String?
+    let email: String?
+}
+
+/// Result of contacts.create capability
+struct ContactsCreateResult: Codable {
+    let contactId: String?
+    let error: String?
+    
+    static func success(contactId: String) -> ContactsCreateResult {
+        ContactsCreateResult(contactId: contactId, error: nil)
+    }
+    
+    static func failed(_ message: String) -> ContactsCreateResult {
+        ContactsCreateResult(contactId: nil, error: message)
+    }
+}
+
+/// Parameters for contacts.update capability
+struct ContactsUpdateParams: Codable {
+    let contactId: String
+    let givenName: String?
+    let familyName: String?
+    let phoneNumber: String?
+    let email: String?
+}
+
+/// Result of contacts.update capability
+struct ContactsUpdateResult: Codable {
+    let updated: Bool
+    let error: String?
+    
+    static let success = ContactsUpdateResult(updated: true, error: nil)
+    
+    static func failed(_ message: String) -> ContactsUpdateResult {
+        ContactsUpdateResult(updated: false, error: message)
     }
 }
