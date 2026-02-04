@@ -181,6 +181,12 @@ struct ContentView: View {
                 viewModel.clearContext()
             })
         }
+        .sheet(isPresented: $viewModel.leadCaptureManager.isShowingEntryForm) {
+            LeadCaptureFormView(manager: viewModel.leadCaptureManager)
+        }
+        .sheet(isPresented: $viewModel.showingBusinessCardCamera) {
+            BusinessCardCaptureView(manager: viewModel.leadCaptureManager)
+        }
         .overlay(alignment: .bottom) {
             // Toast notification overlay
             if let message = viewModel.toastMessage {

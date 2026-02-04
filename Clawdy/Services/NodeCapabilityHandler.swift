@@ -9,24 +9,26 @@ import UIKit
 /// events, and this handler processes those invocations.
 ///
 /// ## Supported Capabilities
-/// | Capability      | Description                          |
-/// |-----------------|--------------------------------------|
-/// | chat.push       | Agent-initiated message delivery     |
-/// | camera.list     | List available cameras               |
-/// | camera.snap     | Capture a photo                      |
-/// | camera.clip     | Record a video clip                  |
-/// | location.get    | Get current GPS location             |
-/// | system.notify   | Show a local notification            |
-/// | calendar.create | Create a calendar event              |
-/// | calendar.read   | Read calendar events                 |
-/// | calendar.update | Update a calendar event              |
-/// | calendar.delete | Delete a calendar event              |
-/// | contacts.search | Search contacts                      |
-/// | contacts.create | Create a contact                     |
-/// | contacts.update | Update a contact                     |
-/// | phone.call      | Initiate a phone call                |
-/// | phone.sms       | Compose an SMS message               |
-/// | email.compose   | Compose an email                     |
+/// | Capability           | Description                          |
+/// |----------------------|--------------------------------------|
+/// | chat.push            | Agent-initiated message delivery     |
+/// | camera.list          | List available cameras               |
+/// | camera.snap          | Capture a photo                      |
+/// | camera.clip          | Record a video clip                  |
+/// | location.get         | Get current GPS location             |
+/// | system.notify        | Show a local notification            |
+/// | calendar.create      | Create a calendar event              |
+/// | calendar.read        | Read calendar events                 |
+/// | calendar.update      | Update a calendar event              |
+/// | calendar.delete      | Delete a calendar event              |
+/// | contacts.search      | Search contacts                      |
+/// | contacts.create      | Create a contact                     |
+/// | contacts.update      | Update a contact                     |
+/// | phone.call           | Initiate a phone call                |
+/// | phone.sms            | Compose an SMS message               |
+/// | email.compose        | Compose an email                     |
+/// | lead.capture         | Capture lead data                    |
+/// | lead.parseVoiceNote  | Parse voice note for lead data       |
 @MainActor
 class NodeCapabilityHandler {
     // MARK: - Capability Handler Types
@@ -88,6 +90,14 @@ class NodeCapabilityHandler {
     
     /// Handler for email.compose capability - composes an email
     var onEmailCompose: ((_ params: EmailComposeParams) async -> EmailComposeResult)?
+    
+    // MARK: - Lead Capture Handlers
+    
+    /// Handler for lead.capture capability - captures a lead
+    var onLeadCapture: ((_ params: LeadCaptureParams) async -> LeadCaptureCapabilityResult)?
+    
+    /// Handler for lead.parseVoiceNote capability - parses voice note for lead data
+    var onLeadParseVoiceNote: ((_ params: LeadParseVoiceNoteParams) async -> LeadParseVoiceNoteResult)?
     
     // MARK: - JSON Coding
     
@@ -158,6 +168,12 @@ class NodeCapabilityHandler {
             
         case "email.compose":
             return await handleEmailCompose(request: request, isBackground: isBackground)
+            
+        case "lead.capture":
+            return await handleLeadCapture(request: request, isBackground: isBackground)
+            
+        case "lead.parseVoiceNote":
+            return await handleLeadParseVoiceNote(request: request)
             
         default:
             return makeErrorResponse(
@@ -685,6 +701,72 @@ class NodeCapabilityHandler {
         return makeSuccessResponse(id: request.id, payload: result)
     }
     
+    // MARK: - Lead Capture Handler
+    
+    private func handleLeadCapture(request: BridgeInvokeRequest, isBackground: Bool) async -> BridgeInvokeResponse {
+        if isBackground {
+            return makeErrorResponse(
+                id: request.id,
+                code: .backgroundUnavailable,
+                message: "Lead capture requires app to be in foreground"
+            )
+        }
+        
+        guard let paramsJSON = request.paramsJSON,
+              let paramsData = paramsJSON.data(using: .utf8),
+              let params = try? decoder.decode(LeadCaptureParams.self, from: paramsData) else {
+            return makeErrorResponse(
+                id: request.id,
+                code: .invalidRequest,
+                message: "Invalid lead.capture params: expected {name: string, ...}"
+            )
+        }
+        
+        guard let handler = onLeadCapture else {
+            return makeErrorResponse(
+                id: request.id,
+                code: .unavailable,
+                message: "lead.capture handler not registered"
+            )
+        }
+        
+        let result = await handler(params)
+        
+        if let error = result.error {
+            return makeErrorResponse(id: request.id, code: .unavailable, message: error)
+        }
+        
+        return makeSuccessResponse(id: request.id, payload: result)
+    }
+    
+    private func handleLeadParseVoiceNote(request: BridgeInvokeRequest) async -> BridgeInvokeResponse {
+        guard let paramsJSON = request.paramsJSON,
+              let paramsData = paramsJSON.data(using: .utf8),
+              let params = try? decoder.decode(LeadParseVoiceNoteParams.self, from: paramsData) else {
+            return makeErrorResponse(
+                id: request.id,
+                code: .invalidRequest,
+                message: "Invalid lead.parseVoiceNote params: expected {transcription: string}"
+            )
+        }
+        
+        guard let handler = onLeadParseVoiceNote else {
+            return makeErrorResponse(
+                id: request.id,
+                code: .unavailable,
+                message: "lead.parseVoiceNote handler not registered"
+            )
+        }
+        
+        let result = await handler(params)
+        
+        if let error = result.error {
+            return makeErrorResponse(id: request.id, code: .unavailable, message: error)
+        }
+        
+        return makeSuccessResponse(id: request.id, payload: result)
+    }
+    
     // MARK: - Response Helpers
     
     private func makeSuccessResponse<T: Codable>(id: String, payload: T) -> BridgeInvokeResponse {
@@ -1078,5 +1160,111 @@ struct EmailComposeResult: Codable {
     
     static func failed(_ message: String) -> EmailComposeResult {
         EmailComposeResult(composed: false, error: message)
+    }
+}
+
+// MARK: - Lead Capture Capability Types
+
+/// Parameters for lead.capture capability
+struct LeadCaptureParams: Codable {
+    let name: String
+    let company: String?
+    let title: String?
+    let phone: String?
+    let email: String?
+    let notes: String?
+    let followUpDate: String?
+    let captureMethod: String?
+    let rawInput: String?
+    let createContact: Bool?
+    let scheduleReminder: Bool?
+    let sendEmailSummary: Bool?
+    let emailSummaryRecipient: String?
+}
+
+/// Result of lead.capture capability
+struct LeadCaptureCapabilityResult: Codable {
+    let captured: Bool
+    let leadId: String?
+    let contactCreated: Bool?
+    let reminderScheduled: Bool?
+    let emailComposed: Bool?
+    let error: String?
+    
+    static func success(
+        leadId: String? = nil,
+        contactCreated: Bool = false,
+        reminderScheduled: Bool = false,
+        emailComposed: Bool = false
+    ) -> LeadCaptureCapabilityResult {
+        LeadCaptureCapabilityResult(
+            captured: true,
+            leadId: leadId,
+            contactCreated: contactCreated,
+            reminderScheduled: reminderScheduled,
+            emailComposed: emailComposed,
+            error: nil
+        )
+    }
+    
+    static func failed(_ message: String) -> LeadCaptureCapabilityResult {
+        LeadCaptureCapabilityResult(
+            captured: false,
+            leadId: nil,
+            contactCreated: nil,
+            reminderScheduled: nil,
+            emailComposed: nil,
+            error: message
+        )
+    }
+}
+
+/// Parameters for lead.parseVoiceNote capability
+struct LeadParseVoiceNoteParams: Codable {
+    let transcription: String
+}
+
+/// Result of lead.parseVoiceNote capability
+struct LeadParseVoiceNoteResult: Codable {
+    let parsed: Bool
+    let name: String?
+    let company: String?
+    let title: String?
+    let phone: String?
+    let email: String?
+    let notes: String?
+    let error: String?
+    
+    static func success(
+        name: String?,
+        company: String?,
+        title: String?,
+        phone: String?,
+        email: String?,
+        notes: String?
+    ) -> LeadParseVoiceNoteResult {
+        LeadParseVoiceNoteResult(
+            parsed: true,
+            name: name,
+            company: company,
+            title: title,
+            phone: phone,
+            email: email,
+            notes: notes,
+            error: nil
+        )
+    }
+    
+    static func failed(_ message: String) -> LeadParseVoiceNoteResult {
+        LeadParseVoiceNoteResult(
+            parsed: false,
+            name: nil,
+            company: nil,
+            title: nil,
+            phone: nil,
+            email: nil,
+            notes: nil,
+            error: message
+        )
     }
 }

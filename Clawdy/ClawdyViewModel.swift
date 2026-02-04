@@ -322,6 +322,17 @@ class ClawdyViewModel: ObservableObject {
     /// Whether Quick Look full-screen viewer is currently shown
     @Published var showingQuickLook: Bool = false
     
+    // MARK: - Lead Capture Properties
+    
+    /// Lead capture manager for workflow orchestration
+    let leadCaptureManager = LeadCaptureManager.shared
+    
+    /// Whether the business card camera is showing
+    @Published var showingBusinessCardCamera: Bool = false
+    
+    /// Captured business card image pending processing
+    @Published var capturedBusinessCardImage: UIImage?
+    
     // MARK: - Input Mode Properties
     
     /// Current input mode (voice or text)
@@ -378,6 +389,7 @@ class ClawdyViewModel: ObservableObject {
         loadInputMode()
         loadDraftTextInput()
         setupBindings()
+        setupLeadCaptureCallbacks()
         Task {
             // Prune old messages on app launch (removes messages older than 7 days)
             await MessagePersistenceManager.shared.pruneOldMessages()
@@ -2364,5 +2376,206 @@ class ClawdyViewModel: ObservableObject {
             }
         }
         nodeCapabilityHandler.onEmailCompose = emailComposeHandler
+        
+        // MARK: - Lead Capture Handlers
+        
+        // lead.capture - Capture lead data with optional contact/calendar/email actions
+        let leadCaptureHandler: (LeadCaptureParams) async -> LeadCaptureCapabilityResult = { params in
+            print("[NodeCapabilityHandler] lead.capture invoked - name: \(params.name)")
+            
+            let manager = await LeadCaptureManager.shared
+            
+            // Validate required field
+            guard !params.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return .failed("Name is required")
+            }
+            
+            // Build LeadData from params
+            var leadData = LeadData()
+            leadData.name = params.name
+            leadData.company = params.company ?? ""
+            leadData.title = params.title ?? ""
+            leadData.phone = params.phone ?? ""
+            leadData.email = params.email ?? ""
+            leadData.notes = params.notes ?? ""
+            
+            if let followUpDateStr = params.followUpDate,
+               let followUpDate = ISO8601DateFormatter().date(from: followUpDateStr) {
+                leadData.followUpDate = followUpDate
+            }
+            
+            if let method = params.captureMethod,
+               let captureMethod = LeadCaptureMethod(rawValue: method) {
+                leadData.captureMethod = captureMethod
+            }
+            
+            leadData.rawInput = params.rawInput
+            leadData.shouldCreateContact = params.createContact ?? true
+            leadData.shouldScheduleReminder = params.scheduleReminder ?? false
+            leadData.shouldSendEmailSummary = params.sendEmailSummary ?? false
+            leadData.emailSummaryRecipient = params.emailSummaryRecipient
+            
+            // Set the lead data on the manager
+            await MainActor.run {
+                manager.currentLead = leadData
+            }
+            
+            // Save the lead
+            let result = await manager.saveLead()
+            
+            switch result {
+            case .success(let savedLead, let actions):
+                return .success(
+                    leadId: savedLead.createdContactId,
+                    contactCreated: actions.contactCreated,
+                    reminderScheduled: actions.reminderScheduled,
+                    emailComposed: actions.emailComposed
+                )
+            case .failed(let error):
+                return .failed(error.localizedDescription ?? "Lead capture failed")
+            case .cancelled:
+                return .failed("Lead capture cancelled")
+            }
+        }
+        nodeCapabilityHandler.onLeadCapture = leadCaptureHandler
+        
+        // lead.parseVoiceNote - Parse voice transcription for lead data via gateway AI
+        let leadParseVoiceNoteHandler: (LeadParseVoiceNoteParams) async -> LeadParseVoiceNoteResult = { [weak self] params in
+            print("[NodeCapabilityHandler] lead.parseVoiceNote invoked - transcription: \(params.transcription.prefix(50))...")
+            
+            guard let self = self else {
+                return .failed("ViewModel deallocated")
+            }
+            
+            do {
+                let requestParams: [String: Any] = ["transcription": params.transcription]
+                let responseData = try await self.gatewayDualConnectionManager.request(
+                    method: "lead.parseVoiceNote",
+                    params: requestParams,
+                    timeoutMs: 30000 // Allow time for AI parsing
+                )
+                
+                // Parse the response
+                if let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any] {
+                    return .success(
+                        name: json["name"] as? String,
+                        company: json["company"] as? String,
+                        title: json["title"] as? String,
+                        phone: json["phone"] as? String,
+                        email: json["email"] as? String,
+                        notes: json["notes"] as? String
+                    )
+                }
+                return .failed("Invalid response format")
+            } catch {
+                print("[NodeCapabilityHandler] lead.parseVoiceNote failed: \(error)")
+                return .failed(error.localizedDescription)
+            }
+        }
+        nodeCapabilityHandler.onLeadParseVoiceNote = leadParseVoiceNoteHandler
+    }
+    
+    // MARK: - Lead Capture Callbacks
+    
+    /// Setup callbacks for LeadCaptureManager to communicate with gateway
+    private func setupLeadCaptureCallbacks() {
+        // Wire up voice note parsing to gateway AI
+        leadCaptureManager.onParseVoiceNote = { [weak self] transcription in
+            guard let self = self else { return nil }
+            
+            do {
+                let requestParams: [String: Any] = ["transcription": transcription]
+                let responseData = try await self.gatewayDualConnectionManager.request(
+                    method: "lead.parseVoiceNote",
+                    params: requestParams,
+                    timeoutMs: 30000
+                )
+                
+                if let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any] {
+                    var leadData = LeadData()
+                    leadData.name = json["name"] as? String ?? ""
+                    leadData.company = json["company"] as? String ?? ""
+                    leadData.title = json["title"] as? String ?? ""
+                    leadData.phone = json["phone"] as? String ?? ""
+                    leadData.email = json["email"] as? String ?? ""
+                    leadData.notes = json["notes"] as? String ?? ""
+                    return leadData
+                }
+            } catch {
+                print("[LeadCapture] Voice note parsing failed: \(error)")
+            }
+            return nil
+        }
+        
+        // Wire up gateway send for lead data
+        leadCaptureManager.onSendToGateway = { [weak self] lead, actions in
+            guard let self = self else { return false }
+            
+            do {
+                var requestParams: [String: Any] = [
+                    "name": lead.name,
+                    "company": lead.company,
+                    "title": lead.title,
+                    "phone": lead.phone,
+                    "email": lead.email,
+                    "notes": lead.notes,
+                    "captureMethod": lead.captureMethod.rawValue,
+                    "contactCreated": actions.contactCreated,
+                    "reminderScheduled": actions.reminderScheduled,
+                    "emailComposed": actions.emailComposed
+                ]
+                
+                if let followUpDate = lead.followUpDate {
+                    requestParams["followUpDate"] = ISO8601DateFormatter().string(from: followUpDate)
+                }
+                if let rawInput = lead.rawInput {
+                    requestParams["rawInput"] = rawInput
+                }
+                if let contactId = lead.createdContactId {
+                    requestParams["createdContactId"] = contactId
+                }
+                if let eventId = lead.createdEventId {
+                    requestParams["createdEventId"] = eventId
+                }
+                
+                _ = try await self.gatewayDualConnectionManager.request(
+                    method: "lead.capture",
+                    params: requestParams,
+                    timeoutMs: 15000
+                )
+                return true
+            } catch {
+                print("[LeadCapture] Gateway send failed: \(error)")
+                return false
+            }
+        }
+    }
+    
+    // MARK: - Lead Capture Actions
+    
+    /// Start lead capture from voice transcription
+    func captureLeadFromVoice(_ transcription: String) {
+        Task {
+            await leadCaptureManager.captureFromVoiceNote(transcription)
+        }
+    }
+    
+    /// Start lead capture from business card image
+    func captureLeadFromBusinessCard(_ image: UIImage) {
+        Task {
+            await leadCaptureManager.captureFromBusinessCard(image)
+        }
+    }
+    
+    /// Start lead capture after a phone call
+    func captureLeadFromCall(phoneNumber: String?) {
+        Task {
+            await leadCaptureManager.captureFromCallFollowUp(phoneNumber: phoneNumber)
+        }
+    }
+    
+    /// Start manual lead entry
+    func startManualLeadCapture() {
+        leadCaptureManager.startManualEntry()
     }
 }

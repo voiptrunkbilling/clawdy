@@ -85,6 +85,10 @@
 		A100005F /* ContextPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200005F /* ContextPreferences.swift */; };
 		A1000060 /* PhoneServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000060 /* PhoneServiceTests.swift */; };
 		A1000061 /* EmailServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000061 /* EmailServiceTests.swift */; };
+		A1000062 /* LeadCaptureManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000062 /* LeadCaptureManager.swift */; };
+		A1000063 /* LeadCaptureManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000063 /* LeadCaptureManagerTests.swift */; };
+		A1000064 /* LeadCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000064 /* LeadCaptureView.swift */; };
+		A1000065 /* LeadCaptureUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000065 /* LeadCaptureUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -179,6 +183,10 @@
 		A200005F /* ContextPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextPreferences.swift; sourceTree = "<group>"; };
 		A2000060 /* PhoneServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneServiceTests.swift; sourceTree = "<group>"; };
 		A2000061 /* EmailServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailServiceTests.swift; sourceTree = "<group>"; };
+		A2000062 /* LeadCaptureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeadCaptureManager.swift; sourceTree = "<group>"; };
+		A2000063 /* LeadCaptureManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeadCaptureManagerTests.swift; sourceTree = "<group>"; };
+		A2000064 /* LeadCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeadCaptureView.swift; sourceTree = "<group>"; };
+		A2000065 /* LeadCaptureUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeadCaptureUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -275,6 +283,9 @@
 				A2000011 /* VPNStatusMonitor.swift */,
 				A2000060 /* PhoneServiceTests.swift */,
 				A2000061 /* EmailServiceTests.swift */,
+				A2000062 /* LeadCaptureManager.swift */,
+				A2000063 /* LeadCaptureManagerTests.swift */,
+				A2000065 /* LeadCaptureUITests.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -313,6 +324,7 @@
 				A200000D /* SettingsView.swift */,
 				A2000019 /* TextInputBar.swift */,
 				A200001C /* ToastView.swift */,
+				A2000064 /* LeadCaptureView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -500,6 +512,10 @@
 				A100005F /* ContextPreferences.swift in Sources */,
 				A1000060 /* PhoneServiceTests.swift in Sources */,
 				A1000061 /* EmailServiceTests.swift in Sources */,
+				A1000062 /* LeadCaptureManager.swift in Sources */,
+				A1000063 /* LeadCaptureManagerTests.swift in Sources */,
+				A1000065 /* LeadCaptureUITests.swift in Sources */,
+				A1000064 /* LeadCaptureView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -108,15 +108,17 @@ class ContactsService: ObservableObject {
     ///   - familyName: Last name
     ///   - phoneNumber: Phone number (optional)
     ///   - email: Email address (optional)
+    ///   - company: Company/organization name (optional)
+    ///   - notes: Notes about the contact (optional)
     /// - Returns: The created contact identifier
-    func createContact(givenName: String, familyName: String, phoneNumber: String? = nil, email: String? = nil) throws -> String {
+    func createContact(givenName: String, familyName: String?, phoneNumber: String? = nil, email: String? = nil, company: String? = nil, notes: String? = nil) throws -> String {
         guard isAuthorized else {
             throw ContactsError.notAuthorized
         }
         
         let contact = CNMutableContact()
         contact.givenName = givenName
-        contact.familyName = familyName
+        contact.familyName = familyName ?? ""
         
         if let phone = phoneNumber {
             contact.phoneNumbers = [CNLabeledValue(label: CNLabelPhoneNumberMain, value: CNPhoneNumber(stringValue: phone))]
@@ -126,11 +128,19 @@ class ContactsService: ObservableObject {
             contact.emailAddresses = [CNLabeledValue(label: CNLabelWork, value: emailAddress as NSString)]
         }
         
+        if let companyName = company {
+            contact.organizationName = companyName
+        }
+        
+        if let noteText = notes {
+            contact.note = noteText
+        }
+        
         let saveRequest = CNSaveRequest()
         saveRequest.add(contact, toContainerWithIdentifier: nil)
         
         try contactStore.execute(saveRequest)
-        print("[ContactsService] Created contact: \(givenName) \(familyName)")
+        print("[ContactsService] Created contact: \(givenName) \(familyName ?? "")")
         return contact.identifier
     }
     
