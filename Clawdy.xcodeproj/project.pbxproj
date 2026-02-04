@@ -89,6 +89,9 @@
 		A1000063 /* LeadCaptureManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000063 /* LeadCaptureManagerTests.swift */; };
 		A1000064 /* LeadCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000064 /* LeadCaptureView.swift */; };
 		A1000065 /* LeadCaptureUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000065 /* LeadCaptureUITests.swift */; };
+		A1000066 /* OfflineMessageQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000066 /* OfflineMessageQueue.swift */; };
+		A1000067 /* OfflineQueueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000067 /* OfflineQueueView.swift */; };
+		A1000068 /* OfflineMessageQueueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000068 /* OfflineMessageQueueTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -187,6 +190,9 @@
 		A2000063 /* LeadCaptureManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeadCaptureManagerTests.swift; sourceTree = "<group>"; };
 		A2000064 /* LeadCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeadCaptureView.swift; sourceTree = "<group>"; };
 		A2000065 /* LeadCaptureUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeadCaptureUITests.swift; sourceTree = "<group>"; };
+		A2000066 /* OfflineMessageQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineMessageQueue.swift; sourceTree = "<group>"; };
+		A2000067 /* OfflineQueueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueueView.swift; sourceTree = "<group>"; };
+		A2000068 /* OfflineMessageQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineMessageQueueTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -286,6 +292,8 @@
 				A2000062 /* LeadCaptureManager.swift */,
 				A2000063 /* LeadCaptureManagerTests.swift */,
 				A2000065 /* LeadCaptureUITests.swift */,
+				A2000066 /* OfflineMessageQueue.swift */,
+				A2000068 /* OfflineMessageQueueTests.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -325,6 +333,7 @@
 				A2000019 /* TextInputBar.swift */,
 				A200001C /* ToastView.swift */,
 				A2000064 /* LeadCaptureView.swift */,
+				A2000067 /* OfflineQueueView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -515,6 +524,9 @@
 				A1000062 /* LeadCaptureManager.swift in Sources */,
 				A1000063 /* LeadCaptureManagerTests.swift in Sources */,
 				A1000065 /* LeadCaptureUITests.swift in Sources */,
+				A1000066 /* OfflineMessageQueue.swift in Sources */,
+				A1000067 /* OfflineQueueView.swift in Sources */,
+				A1000068 /* OfflineMessageQueueTests.swift in Sources */,
 				A1000064 /* LeadCaptureView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

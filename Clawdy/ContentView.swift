@@ -57,6 +57,18 @@ struct ContentView: View {
                 )
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
+            
+            // Offline queue banner (shown when there are pending or failed messages)
+            if viewModel.offlineMessageQueue.messageCount > 0 {
+                OfflineQueueBannerView(
+                    pendingCount: viewModel.offlineMessageQueue.messageCount - viewModel.offlineMessageQueue.failedMessages.count,
+                    failedCount: viewModel.offlineMessageQueue.failedMessages.count,
+                    onTap: {
+                        viewModel.showingOfflineQueue = true
+                    }
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
 
             // Reconnecting indicator (smaller, during active reconnection)
             if viewModel.isReconnecting {
@@ -176,6 +188,7 @@ struct ContentView: View {
         .animation(.easeInOut(duration: 0.3), value: isOffline)
         .animation(.easeInOut(duration: 0.3), value: viewModel.isReconnecting)
         .animation(.easeInOut(duration: 0.25), value: viewModel.inputMode)
+        .animation(.easeInOut(duration: 0.3), value: viewModel.offlineMessageQueue.messageCount)
         .sheet(isPresented: $showingSettings) {
             SettingsView(onClearContext: {
                 viewModel.clearContext()
@@ -186,6 +199,17 @@ struct ContentView: View {
         }
         .sheet(isPresented: $viewModel.showingBusinessCardCamera) {
             BusinessCardCaptureView(manager: viewModel.leadCaptureManager)
+        }
+        .sheet(isPresented: $viewModel.showingOfflineQueue) {
+            OfflineQueueView(
+                queue: viewModel.offlineMessageQueue,
+                onRetry: { messageId in
+                    await viewModel.retryOfflineMessage(id: messageId)
+                },
+                onDismiss: {
+                    viewModel.showingOfflineQueue = false
+                }
+            )
         }
         .overlay(alignment: .bottom) {
             // Toast notification overlay

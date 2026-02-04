@@ -55,12 +55,14 @@ actor GatewayChatClient {
     ///   - text: The message text
     ///   - images: Optional image attachments
     ///   - thinking: Thinking level ("low", "medium", "high", "none")
+    ///   - idempotencyKey: Optional idempotency key for retry deduplication
     /// - Returns: SendResponse with runId for abort support
     /// - Throws: GatewayError if not connected or request fails
     func sendMessage(
         text: String,
         images: [ImageAttachment] = [],
-        thinking: String = "low"
+        thinking: String = "low",
+        idempotencyKey: String? = nil
     ) async throws -> SendResponse {
         // Convert image attachments to structured attachments with proper MIME types
         var attachments: [GatewayDualConnectionManager.ChatAttachment]?
@@ -78,8 +80,8 @@ actor GatewayChatClient {
             }
         }
 
-        // Send via unified WebSocket connection with thinking level
-        let runId = try await connectionManager.sendMessage(text, attachments: attachments, thinking: thinking)
+        // Send via unified WebSocket connection with thinking level and idempotency key
+        let runId = try await connectionManager.sendMessage(text, attachments: attachments, thinking: thinking, idempotencyKey: idempotencyKey)
         currentRunId = runId
         
         return SendResponse(runId: runId, sessionKey: sessionKey)

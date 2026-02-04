@@ -892,19 +892,20 @@ class GatewayDualConnectionManager: ObservableObject {
     ///   - text: The message text
     ///   - attachments: Optional structured attachments with MIME type info
     ///   - thinking: Thinking level ("low", "medium", "high", "none")
-    func sendMessage(_ text: String, attachments: [ChatAttachment]? = nil, thinking: String = "low") async throws -> String {
+    ///   - idempotencyKey: Optional idempotency key for retry deduplication (defaults to new UUID if nil)
+    func sendMessage(_ text: String, attachments: [ChatAttachment]? = nil, thinking: String = "low", idempotencyKey: String? = nil) async throws -> String {
         guard let connection = operatorConnection,
               await connection.isConnected else {
             throw GatewayError.notConnected
         }
         
-        let idempotencyKey = UUID().uuidString
+        let finalIdempotencyKey = idempotencyKey ?? UUID().uuidString
         
         var params: [String: Any] = [
             "sessionKey": chatSessionKey,
             "message": text,
             "deliver": false,
-            "idempotencyKey": idempotencyKey,
+            "idempotencyKey": finalIdempotencyKey,
             "thinking": thinking,
         ]
         
@@ -924,7 +925,7 @@ class GatewayDualConnectionManager: ObservableObject {
            let runId = json["runId"] as? String {
             return runId
         }
-        return idempotencyKey
+        return finalIdempotencyKey
     }
     
     /// Load chat history via the operator connection.

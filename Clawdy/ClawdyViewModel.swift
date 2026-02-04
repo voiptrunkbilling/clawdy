@@ -322,6 +322,14 @@ class ClawdyViewModel: ObservableObject {
     /// Whether Quick Look full-screen viewer is currently shown
     @Published var showingQuickLook: Bool = false
     
+    // MARK: - Offline Queue Properties
+    
+    /// Offline message queue for storing messages when disconnected
+    let offlineMessageQueue = OfflineMessageQueue.shared
+    
+    /// Whether the offline queue view is showing
+    @Published var showingOfflineQueue: Bool = false
+    
     // MARK: - Lead Capture Properties
     
     /// Lead capture manager for workflow orchestration
@@ -389,6 +397,7 @@ class ClawdyViewModel: ObservableObject {
         loadInputMode()
         loadDraftTextInput()
         setupBindings()
+        setupOfflineQueueCallbacks()
         setupLeadCaptureCallbacks()
         Task {
             // Prune old messages on app launch (removes messages older than 7 days)
@@ -497,6 +506,7 @@ class ClawdyViewModel: ObservableObject {
         
         // Request chat history when dual connection becomes active (operator role connected)
         // Monitor status changes and load history when chat capability becomes available
+        // Also sync any queued offline messages when reconnecting
         gatewayDualConnectionManager.$status
             .receive(on: DispatchQueue.main)
             .sink { [weak self] status in
@@ -505,6 +515,12 @@ class ClawdyViewModel: ObservableObject {
                 if status.hasChatCapability {
                     print("[ViewModel] Chat capability available, loading gateway history...")
                     Task { await self.loadGatewayHistory() }
+                    
+                    // Sync offline queue when we reconnect
+                    if self.offlineMessageQueue.messageCount > 0 {
+                        print("[ViewModel] Syncing \(self.offlineMessageQueue.messageCount) offline messages...")
+                        Task { await self.syncOfflineQueue() }
+                    }
                 }
             }
             .store(in: &cancellables)
@@ -1520,6 +1536,7 @@ class ClawdyViewModel: ObservableObject {
     
     /// Send command using Gateway mode via Clawdbot bridge.
     /// Uses the chat.* methods provided by the gateway.
+    /// If offline, queues the message for later delivery.
     /// - Parameters:
     ///   - command: The text command to send
     ///   - images: Optional array of image attachments to include for visual analysis
@@ -1535,15 +1552,34 @@ class ClawdyViewModel: ObservableObject {
             // Wait briefly for connection
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             if !gatewayDualConnectionManager.status.hasChatCapability {
-                let failMessage = "Failed to connect to gateway. Please check settings."
-                addMessage(failMessage, isUser: false)
+                // Queue message for later delivery instead of failing
+                let attachments: [OfflineMessageQueue.AttachmentData]? = images.isEmpty ? nil : images.compactMap { img in
+                    guard let data = img.getDataForUpload() else { return nil }
+                    let ext = ImageAttachment.fileExtension(for: img.mediaType)
+                    return OfflineMessageQueue.AttachmentData(
+                        mimeType: img.mediaType,
+                        fileName: "\(img.id.uuidString.prefix(8)).\(ext)",
+                        data: data
+                    )
+                }
+                
+                offlineMessageQueue.enqueue(
+                    content: command,
+                    attachments: attachments,
+                    thinking: "low"
+                )
+                
+                let queuedMessage = "Message queued. Will send when connected. (\(offlineMessageQueue.messageCount) pending)"
+                addMessage(queuedMessage, isUser: false)
                 if inputMode == .voice {
-                    incrementalTTS.appendText("Gateway connection failed. Please check your settings.")
+                    incrementalTTS.appendText("Message queued for delivery when you're back online.")
                     incrementalTTS.flush()
                 }
+                // Clear pending images since they're now in the queue
                 if !images.isEmpty {
-                    pendingImages = images
+                    pendingImages = []
                 }
+                processingState = .idle
                 return
             }
         }
@@ -2473,6 +2509,123 @@ class ClawdyViewModel: ObservableObject {
             }
         }
         nodeCapabilityHandler.onLeadParseVoiceNote = leadParseVoiceNoteHandler
+    }
+    
+    // MARK: - Offline Queue
+    
+    /// Setup callbacks for offline queue capacity warnings
+    private func setupOfflineQueueCallbacks() {
+        offlineMessageQueue.onCapacityWarning = { [weak self] warning in
+            guard let self = self else { return }
+            Task { @MainActor in
+                switch warning {
+                case .nearFull(let messagePercent, let sizePercent):
+                    let percent = max(messagePercent, sizePercent)
+                    self.showToast("Offline queue is \(percent)% full")
+                case .none:
+                    break
+                }
+            }
+        }
+    }
+    
+    /// Sync all pending offline messages with the gateway.
+    /// Called automatically when connection is restored.
+    func syncOfflineQueue() async {
+        guard gatewayDualConnectionManager.status.hasChatCapability else {
+            print("[ViewModel] Cannot sync offline queue - no chat capability")
+            return
+        }
+        
+        let result = await offlineMessageQueue.syncAll { [weak self] message in
+            guard let self = self else {
+                return OfflineMessageQueue.GatewaySendResponse(status: .error, runId: nil, errorMessage: "ViewModel deallocated")
+            }
+            
+            do {
+                // Convert queued attachments to ImageAttachment if present
+                var images: [ImageAttachment] = []
+                if let attachments = message.attachments {
+                    for att in attachments {
+                        if let data = att.decodeData() {
+                            let img = ImageAttachment(
+                                data: data,
+                                mediaType: att.mimeType,
+                                thumbnail: nil
+                            )
+                            images.append(img)
+                        }
+                    }
+                }
+                
+                // Send via gateway with idempotency token from queued message
+                let response = try await self.gatewayChatClient.sendMessage(
+                    text: message.content,
+                    images: images,
+                    thinking: message.thinking ?? "low",
+                    idempotencyKey: message.id.uuidString
+                )
+                
+                // Check for duplicate response from gateway
+                // Gateway returns runId if successful, may indicate duplicate
+                if let runId = response.runId, runId == "duplicate" {
+                    return OfflineMessageQueue.GatewaySendResponse(status: .duplicate, runId: runId, errorMessage: nil)
+                }
+                
+                return OfflineMessageQueue.GatewaySendResponse(status: .success, runId: response.runId, errorMessage: nil)
+            } catch {
+                return OfflineMessageQueue.GatewaySendResponse(status: .error, runId: nil, errorMessage: error.localizedDescription)
+            }
+        }
+        
+        if result.sent > 0 {
+            showToast("Sent \(result.sent) queued message\(result.sent == 1 ? "" : "s")")
+        }
+        if result.failed > 0 {
+            showToast("\(result.failed) message\(result.failed == 1 ? "" : "s") failed to send")
+        }
+    }
+    
+    /// Retry a specific failed offline message.
+    /// - Parameter messageId: The message ID to retry
+    func retryOfflineMessage(id messageId: UUID) async -> Bool {
+        return await offlineMessageQueue.retryMessage(id: messageId) { [weak self] message in
+            guard let self = self else {
+                return OfflineMessageQueue.GatewaySendResponse(status: .error, runId: nil, errorMessage: "ViewModel deallocated")
+            }
+            
+            do {
+                var images: [ImageAttachment] = []
+                if let attachments = message.attachments {
+                    for att in attachments {
+                        if let data = att.decodeData() {
+                            let img = ImageAttachment(
+                                data: data,
+                                mediaType: att.mimeType,
+                                thumbnail: nil
+                            )
+                            images.append(img)
+                        }
+                    }
+                }
+                
+                // Manual retry also uses the message's idempotency token
+                let response = try await self.gatewayChatClient.sendMessage(
+                    text: message.content,
+                    images: images,
+                    thinking: message.thinking ?? "low",
+                    idempotencyKey: message.id.uuidString
+                )
+                
+                if let runId = response.runId, runId == "duplicate" {
+                    return OfflineMessageQueue.GatewaySendResponse(status: .duplicate, runId: runId, errorMessage: nil)
+                }
+                
+                return OfflineMessageQueue.GatewaySendResponse(status: .success, runId: response.runId, errorMessage: nil)
+            } catch {
+                return OfflineMessageQueue.GatewaySendResponse(status: .error, runId: nil, errorMessage: error.localizedDescription)
+            }
+        }
     }
     
     // MARK: - Lead Capture Callbacks
