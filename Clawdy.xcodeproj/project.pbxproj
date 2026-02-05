@@ -90,6 +90,9 @@
 		A1000066 /* OfflineMessageQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000066 /* OfflineMessageQueue.swift */; };
 		A1000067 /* OfflineQueueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000067 /* OfflineQueueView.swift */; };
 		A1000068 /* OfflineMessageQueueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000068 /* OfflineMessageQueueTests.swift */; };
+		A1000071 /* SessionDraftStateCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000071 /* SessionDraftStateCache.swift */; };
+		A1000072 /* SessionDraftStateCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000072 /* SessionDraftStateCacheTests.swift */; };
+		A1000073 /* SessionMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000073 /* SessionMigrationTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -189,6 +192,9 @@
 		A2000066 /* OfflineMessageQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineMessageQueue.swift; sourceTree = "<group>"; };
 		A2000067 /* OfflineQueueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueueView.swift; sourceTree = "<group>"; };
 		A2000068 /* OfflineMessageQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineMessageQueueTests.swift; sourceTree = "<group>"; };
+		A2000071 /* SessionDraftStateCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDraftStateCache.swift; sourceTree = "<group>"; };
+		A2000072 /* SessionDraftStateCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDraftStateCacheTests.swift; sourceTree = "<group>"; };
+		A2000073 /* SessionMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionMigrationTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -289,6 +295,9 @@
 				A2000065 /* LeadCaptureUITests.swift */,
 				A2000066 /* OfflineMessageQueue.swift */,
 				A2000068 /* OfflineMessageQueueTests.swift */,
+				A2000071 /* SessionDraftStateCache.swift */,
+				A2000072 /* SessionDraftStateCacheTests.swift */,
+				A2000073 /* SessionMigrationTests.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -520,6 +529,9 @@
 				A1000067 /* OfflineQueueView.swift in Sources */,
 				A1000068 /* OfflineMessageQueueTests.swift in Sources */,
 				A1000064 /* LeadCaptureView.swift in Sources */,
+				A1000071 /* SessionDraftStateCache.swift in Sources */,
+				A1000072 /* SessionDraftStateCacheTests.swift in Sources */,
+				A1000073 /* SessionMigrationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

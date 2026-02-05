@@ -32,8 +32,8 @@ class SessionManager: ObservableObject {
     
     // MARK: - Draft State Cache
     
-    /// In-memory cache of draft states per session (not persisted to disk)
-    private var draftStateCache: [UUID: SessionDraftStateWithImages] = [:]
+    /// Session draft state cache for persistence across app lifecycle
+    private let draftStateCache = SessionDraftStateCache.shared
     
     // MARK: - Dependencies
     
@@ -174,7 +174,7 @@ class SessionManager: ObservableObject {
         await persistenceManager.deleteSession(session)
         
         // Remove from draft cache
-        draftStateCache.removeValue(forKey: session.id)
+        draftStateCache.clearDraft(for: session.id)
         
         // Remove from list
         sessions.removeAll { $0.id == session.id }
@@ -261,7 +261,7 @@ class SessionManager: ObservableObject {
         if let currentSession = activeSession,
            let saveDraft = onSaveDraftState {
             let draftState = saveDraft()
-            draftStateCache[currentSession.id] = draftState
+            draftStateCache.saveDraft(for: currentSession.id, state: draftState)
         }
         
         // Update active session
@@ -271,7 +271,7 @@ class SessionManager: ObservableObject {
         onSessionChanged?(session)
         
         // Restore draft state for new session
-        let draftState = draftStateCache[session.id] ?? .empty
+        let draftState = draftStateCache.loadDraftWithImages(for: session.id)
         onRestoreDraftState?(draftState)
         
         // Close sidebar

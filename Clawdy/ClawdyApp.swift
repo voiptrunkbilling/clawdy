@@ -192,6 +192,10 @@ struct ClawdyApp: App {
         
         switch phase {
         case .background:
+            // Persist draft states to UserDefaults before backgrounding
+            // This ensures drafts survive app termination
+            SessionDraftStateCache.shared.persistAllDrafts()
+            
             // Handle Kokoro backgrounding first - stop GPU work to prevent crashes
             // GPU work from background is NOT allowed before iOS 26
             Task {

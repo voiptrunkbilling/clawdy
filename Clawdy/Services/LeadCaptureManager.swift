@@ -490,10 +490,11 @@ struct LeadData: Codable, Equatable {
 // MARK: - Supporting Types
 
 /// How a lead was captured.
+/// Raw values must match backend VALID_CAPTURE_METHODS in ios-lead.ts
 enum LeadCaptureMethod: String, Codable {
     case voiceNote = "voice_note"
     case businessCard = "business_card"
-    case callFollowUp = "call_follow_up"
+    case callFollowUp = "call_followup"  // Note: no underscore before "up" to match backend
     case manual = "manual"
     
     var displayName: String {

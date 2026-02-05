@@ -400,6 +400,10 @@ class ClawdyViewModel: ObservableObject {
     private var isGatewayToolExecuting = false
     private var gatewayResponseContinuation: CheckedContinuation<Void, Never>?
     
+    /// The session that initiated the current streaming request.
+    /// Used to route streaming events to the correct session even if user switches sessions.
+    @Published private(set) var activeStreamingSessionId: UUID?
+    
     /// Suppress gateway finalization after a user-initiated cancel/interrupt
     private var suppressGatewayFinalization = false
     
@@ -1116,6 +1120,9 @@ class ClawdyViewModel: ObservableObject {
     
     /// Save a partial streaming response with a cancellation marker.
     private func finalizeCancelledStreamingMessage(marker: String) {
+        // Clear streaming session tracking
+        activeStreamingSessionId = nil
+        
         if var partialMessage = streamingMessage, !partialMessage.text.isEmpty {
             partialMessage.isStreaming = false
             partialMessage.wasInterrupted = true
@@ -1604,8 +1611,12 @@ class ClawdyViewModel: ObservableObject {
     
     /// Finalize the current gateway streaming message and persist it.
     private func finalizeGatewayStreamingMessage() {
+        // Capture the streaming session ID before clearing
+        let streamingSessionId = activeStreamingSessionId
+        
         defer {
             streamingMessage = nil
+            activeStreamingSessionId = nil
         }
 
         if var completedMessage = streamingMessage, !completedMessage.text.isEmpty {
@@ -1615,7 +1626,19 @@ class ClawdyViewModel: ObservableObject {
             }
             
             completedMessage.isStreaming = false
-            messages.append(completedMessage)
+            
+            // Route message to the session that initiated the streaming request
+            if let sessionId = streamingSessionId, sessionId == currentSession?.id {
+                // Same session - add to current messages
+                messages.append(completedMessage)
+            } else if let sessionId = streamingSessionId {
+                // Different session - save to that session's storage
+                // Message will appear when user switches back
+                completedMessage.sessionId = sessionId
+            } else {
+                // No streaming session tracked - add to current
+                messages.append(completedMessage)
+            }
             
             Task {
                 await MessagePersistenceManager.shared.saveMessage(completedMessage)
@@ -1641,6 +1664,7 @@ class ClawdyViewModel: ObservableObject {
         isGatewayToolExecuting = false
         streamingMessage = nil
         streamingResponseText = ""
+        activeStreamingSessionId = nil
         processingState = .idle
         finishGatewayResponse()
         
@@ -1705,6 +1729,10 @@ class ClawdyViewModel: ObservableObject {
         gatewayFullText = ""
         lastGatewaySeq = nil
         isGatewayToolExecuting = false
+        
+        // Track which session this streaming request belongs to
+        activeStreamingSessionId = currentSession?.id
+        
         if inputMode == .voice {
             incrementalTTS.reset()
         }
@@ -1822,6 +1850,7 @@ class ClawdyViewModel: ObservableObject {
             
             streamingMessage = nil
             streamingResponseText = ""
+            activeStreamingSessionId = nil
             processingState = .idle
             isAborting = false
         }
@@ -1966,10 +1995,14 @@ class ClawdyViewModel: ObservableObject {
     
     /// Switch to a different session.
     /// Updates the chat client session key and loads messages for the new session.
+    /// If streaming is in progress for another session, it continues in background.
     /// - Parameter session: The session to switch to
     func switchSession(_ session: Session) async {
         // Update session key in chat client
         await gatewayChatClient.setSessionKey(session.sessionKey)
+        
+        // Check if we're switching away from a session that's currently streaming
+        let wasStreaming = activeStreamingSessionId != nil && activeStreamingSessionId != session.id
         
         // Update current session
         currentSession = session
@@ -1978,12 +2011,37 @@ class ClawdyViewModel: ObservableObject {
         let sessionMessages = await sessionPersistence.loadMessages(for: session)
         messages = sessionMessages
         
-        // Clear streaming state
-        streamingMessage = nil
-        streamingResponseText = ""
-        processingState = .idle
-        
-        print("[ViewModel] Switched to session: \(session.name) with \(sessionMessages.count) messages")
+        // Only clear local streaming UI state if NOT switching away from an active stream
+        // The activeStreamingSessionId is preserved so events continue routing to the original session
+        if wasStreaming {
+            // Switching away from streaming session - clear UI state but keep streaming to original session
+            streamingMessage = nil
+            streamingResponseText = ""
+            // processingState should show idle for this session (original keeps streaming in background)
+            processingState = .idle
+            print("[ViewModel] Switched to session: \(session.name) while streaming continues in background for session \(activeStreamingSessionId?.uuidString.prefix(8) ?? "nil")")
+        } else if session.id == activeStreamingSessionId {
+            // Switching back to the session that's streaming - restore streaming UI if applicable
+            print("[ViewModel] Switched back to streaming session: \(session.name)")
+        } else {
+            // Normal switch, no streaming involved
+            streamingMessage = nil
+            streamingResponseText = ""
+            processingState = .idle
+            print("[ViewModel] Switched to session: \(session.name) with \(sessionMessages.count) messages")
+        }
+    }
+    
+    /// Check if the current session is the one that's streaming.
+    /// When false, UI should show that streaming is happening in another session.
+    var isCurrentSessionStreaming: Bool {
+        guard let streamingId = activeStreamingSessionId else { return false }
+        return streamingId == currentSession?.id
+    }
+    
+    /// Check if streaming is active for any session.
+    var isStreamingActive: Bool {
+        activeStreamingSessionId != nil
     }
     
     /// Get current draft state for saving when switching sessions.
@@ -2825,7 +2883,11 @@ class ClawdyViewModel: ObservableObject {
             guard let self = self else { return false }
             
             do {
+                // rawText is required by backend - use rawInput or construct from lead data
+                let rawText = lead.rawInput ?? "\(lead.name) - \(lead.company) - \(lead.title)"
+                
                 var requestParams: [String: Any] = [
+                    "rawText": rawText,  // Required by backend
                     "name": lead.name,
                     "company": lead.company,
                     "title": lead.title,
@@ -2840,9 +2902,6 @@ class ClawdyViewModel: ObservableObject {
                 
                 if let followUpDate = lead.followUpDate {
                     requestParams["followUpDate"] = ISO8601DateFormatter().string(from: followUpDate)
-                }
-                if let rawInput = lead.rawInput {
-                    requestParams["rawInput"] = rawInput
                 }
                 if let contactId = lead.createdContactId {
                     requestParams["createdContactId"] = contactId
