@@ -193,10 +193,9 @@ class ContextDetectionService: NSObject, ObservableObject {
         print("[ContextDetection] CarPlay connected: \(connected)")
         
         // Trigger immediate context recalculation
+        // Note: updateContextMode() calls sendContextUpdateToGateway() when mode changes,
+        // so we don't call it again here to avoid duplicate RPC calls
         updateContextMode()
-        
-        // Notify gateway of context change
-        sendContextUpdateToGateway()
     }
     
     // MARK: - Test Mode Properties
@@ -604,12 +603,13 @@ class ContextDetectionService: NSObject, ObservableObject {
             let contextDict = getContextDictionary()
             
             // Include current mode and detection signals
+            // Only add manualOverride to params when non-nil to ensure JSON-serializable types
             var params: [String: Any] = [
                 "mode": currentContextMode.rawValue,
                 "context": contextDict
             ]
             
-            // Include manual override if set
+            // Include manual override if set (only add key when value exists)
             if let manual = manualOverride {
                 params["manualOverride"] = manual.rawValue
             }
@@ -708,13 +708,18 @@ class ContextDetectionService: NSObject, ObservableObject {
             dict["location"] = locationDict
         }
         
-        // Add detection signals
-        dict["detectionSignals"] = [
+        // Add detection signals - only include values when present (no Optionals in JSON)
+        var detectionSignals: [String: Any] = [
             "carPlayConnected": isCarPlayConnected,
-            "carBluetoothConnected": isCarBluetoothConnected,
-            "manualOverride": manualOverride?.rawValue as Any,
-            "activeGeofence": activeGeofence?.name as Any
+            "carBluetoothConnected": isCarBluetoothConnected
         ]
+        if let manual = manualOverride {
+            detectionSignals["manualOverride"] = manual.rawValue
+        }
+        if let geofence = activeGeofence {
+            detectionSignals["activeGeofence"] = geofence.name
+        }
+        dict["detectionSignals"] = detectionSignals
         
         return dict
     }

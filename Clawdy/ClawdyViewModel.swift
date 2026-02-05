@@ -213,8 +213,11 @@ struct TranscriptMessage: Identifiable, Equatable, Codable {
     /// Image attachment IDs (references to temp files, NOT persisted across launches)
     /// Images are session-only - they exist in ImageAttachmentStore during the session
     var imageAttachmentIds: [UUID]
+    
+    /// Session ID this message belongs to (nil for legacy messages)
+    var sessionId: UUID?
 
-    init(text: String, isUser: Bool, isStreaming: Bool = false, wasInterrupted: Bool = false, toolCalls: [ToolCallInfo] = [], imageAttachmentIds: [UUID] = []) {
+    init(text: String, isUser: Bool, isStreaming: Bool = false, wasInterrupted: Bool = false, toolCalls: [ToolCallInfo] = [], imageAttachmentIds: [UUID] = [], sessionId: UUID? = nil) {
         self.id = UUID()
         self.text = text
         self.isUser = isUser
@@ -223,12 +226,13 @@ struct TranscriptMessage: Identifiable, Equatable, Codable {
         self.wasInterrupted = wasInterrupted
         self.toolCalls = toolCalls
         self.imageAttachmentIds = imageAttachmentIds
+        self.sessionId = sessionId
     }
     
     // MARK: - Custom Codable (exclude imageAttachmentIds from persistence)
     
     enum CodingKeys: String, CodingKey {
-        case id, text, isUser, timestamp, isStreaming, wasInterrupted, toolCalls
+        case id, text, isUser, timestamp, isStreaming, wasInterrupted, toolCalls, sessionId
         // imageAttachmentIds intentionally excluded - images are session-only
     }
     
@@ -242,6 +246,7 @@ struct TranscriptMessage: Identifiable, Equatable, Codable {
         wasInterrupted = try container.decode(Bool.self, forKey: .wasInterrupted)
         toolCalls = try container.decode([ToolCallInfo].self, forKey: .toolCalls)
         imageAttachmentIds = []  // Always empty when loading from persistence
+        sessionId = try container.decodeIfPresent(UUID.self, forKey: .sessionId)  // Optional for backwards compatibility
     }
     
     func encode(to encoder: Encoder) throws {
@@ -253,6 +258,7 @@ struct TranscriptMessage: Identifiable, Equatable, Codable {
         try container.encode(isStreaming, forKey: .isStreaming)
         try container.encode(wasInterrupted, forKey: .wasInterrupted)
         try container.encode(toolCalls, forKey: .toolCalls)
+        try container.encodeIfPresent(sessionId, forKey: .sessionId)
         // imageAttachmentIds intentionally NOT encoded - images are session-only
     }
 }
