@@ -5,12 +5,42 @@ import SwiftUI
 struct OnboardingView: View {
     @ObservedObject var coordinator: OnboardingCoordinator
     @State private var isProcessingAction = false
+    @Environment(\.colorScheme) private var colorScheme
+    
+    /// Adaptive gradient colors for dark mode support
+    private var gradientColors: [Color] {
+        if colorScheme == .dark {
+            return [Color.blue.opacity(0.35), Color.purple.opacity(0.25)]
+        } else {
+            return [Color.blue.opacity(0.6), Color.purple.opacity(0.4)]
+        }
+    }
+    
+    /// Adaptive text color for contrast
+    private var primaryTextColor: Color {
+        colorScheme == .dark ? .white : .white
+    }
+    
+    /// Adaptive secondary text color
+    private var secondaryTextColor: Color {
+        colorScheme == .dark ? .white.opacity(0.85) : .white.opacity(0.9)
+    }
+    
+    /// Adaptive button background
+    private var buttonBackground: Color {
+        colorScheme == .dark ? Color(.systemBackground) : .white
+    }
+    
+    /// Adaptive button text color
+    private var buttonTextColor: Color {
+        colorScheme == .dark ? .accentColor : .blue
+    }
     
     var body: some View {
         ZStack {
-            // Background gradient
+            // Background gradient - adaptive for dark mode
             LinearGradient(
-                gradient: Gradient(colors: [Color.blue.opacity(0.6), Color.purple.opacity(0.4)]),
+                gradient: Gradient(colors: gradientColors),
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -23,14 +53,14 @@ struct OnboardingView: View {
                     // Icon
                     Image(systemName: step.systemImageName)
                         .font(.largeTitle)
-                        .foregroundColor(.white)
+                        .foregroundColor(primaryTextColor)
                         .padding(.bottom, 30)
                     
                     // Title
                     Text(step.title)
                         .font(.largeTitle)
                         .fontWeight(.bold)
-                        .foregroundColor(.white)
+                        .foregroundColor(primaryTextColor)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
                         .padding(.bottom, 16)
@@ -38,7 +68,7 @@ struct OnboardingView: View {
                     // Description
                     Text(step.description)
                         .font(.body)
-                        .foregroundColor(.white.opacity(0.9))
+                        .foregroundColor(secondaryTextColor)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
                         .padding(.bottom, 40)
@@ -47,7 +77,7 @@ struct OnboardingView: View {
                     HStack(spacing: 8) {
                         ForEach(OnboardingCoordinator.OnboardingStep.allCases, id: \.rawValue) { s in
                             Circle()
-                                .fill(s == step ? Color.white : Color.white.opacity(0.4))
+                                .fill(s == step ? primaryTextColor : primaryTextColor.opacity(0.4))
                                 .frame(width: 8, height: 8)
                         }
                     }
@@ -66,7 +96,7 @@ struct OnboardingView: View {
                             HStack {
                                 if isProcessingAction {
                                     ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .blue))
+                                        .progressViewStyle(CircularProgressViewStyle(tint: buttonTextColor))
                                         .padding(.trailing, 8)
                                 }
                                 Text(step.buttonTitle)
@@ -74,8 +104,8 @@ struct OnboardingView: View {
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
-                            .background(Color.white)
-                            .foregroundColor(.blue)
+                            .background(buttonBackground)
+                            .foregroundColor(buttonTextColor)
                             .cornerRadius(12)
                         }
                         .disabled(isProcessingAction)
@@ -86,7 +116,7 @@ struct OnboardingView: View {
                                 coordinator.handleSkipAction()
                             }) {
                                 Text(skipTitle)
-                                    .foregroundColor(.white.opacity(0.8))
+                                    .foregroundColor(primaryTextColor.opacity(0.8))
                             }
                             .disabled(isProcessingAction)
                         }

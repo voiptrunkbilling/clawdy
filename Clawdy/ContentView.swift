@@ -708,70 +708,74 @@ struct TranscriptView: View {
     private let bottomAnchorID = "bottom_anchor"
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
-                        let previousMessage = index > 0 ? messages[index - 1] : nil
-                        let nextMessage = index < messages.count - 1 ? messages[index + 1] : nil
-                        let spacing = MessageGrouping.spacing(for: message, previous: previousMessage)
-                        let showTimestamp = MessageGrouping.isLastInGroup(current: message, next: nextMessage)
-                        
-                        MessageBubble(
-                            message: message,
-                            imageStore: imageStore,
-                            onImageTap: onImageTap,
-                            showSenderLabel: MessageGrouping.shouldShowTimestamp(for: message, previous: previousMessage),
-                            showTimestamp: showTimestamp
-                        )
-                        .id(message.id)
-                        .frame(maxWidth: .infinity, alignment: message.isUser ? .trailing : .leading)
-                        .padding(.top, spacing)
-                    }
+        GeometryReader { geometry in
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
+                            let previousMessage = index > 0 ? messages[index - 1] : nil
+                            let nextMessage = index < messages.count - 1 ? messages[index + 1] : nil
+                            let spacing = MessageGrouping.spacing(for: message, previous: previousMessage)
+                            let showTimestamp = MessageGrouping.isLastInGroup(current: message, next: nextMessage)
+                            
+                            MessageBubble(
+                                message: message,
+                                imageStore: imageStore,
+                                onImageTap: onImageTap,
+                                showSenderLabel: MessageGrouping.shouldShowTimestamp(for: message, previous: previousMessage),
+                                showTimestamp: showTimestamp,
+                                containerWidth: geometry.size.width
+                            )
+                            .id(message.id)
+                            .frame(maxWidth: .infinity, alignment: message.isUser ? .trailing : .leading)
+                            .padding(.top, spacing)
+                        }
 
-                    // Show the streaming message at the end of the list if it exists
-                    if let streaming = streamingMessage {
-                        let previousMessage = messages.last
-                        let spacing = MessageGrouping.spacing(for: streaming, previous: previousMessage)
-                        
-                        MessageBubble(
-                            message: streaming,
-                            imageStore: imageStore,
-                            onImageTap: onImageTap,
-                            showSenderLabel: MessageGrouping.shouldShowTimestamp(for: streaming, previous: previousMessage),
-                            showTimestamp: false
-                        )
-                        .id("streaming_\(streaming.id)")
-                        .frame(maxWidth: .infinity, alignment: streaming.isUser ? .trailing : .leading)
-                        .padding(.top, spacing)
-                    }
+                        // Show the streaming message at the end of the list if it exists
+                        if let streaming = streamingMessage {
+                            let previousMessage = messages.last
+                            let spacing = MessageGrouping.spacing(for: streaming, previous: previousMessage)
+                            
+                            MessageBubble(
+                                message: streaming,
+                                imageStore: imageStore,
+                                onImageTap: onImageTap,
+                                showSenderLabel: MessageGrouping.shouldShowTimestamp(for: streaming, previous: previousMessage),
+                                showTimestamp: false,
+                                containerWidth: geometry.size.width
+                            )
+                            .id("streaming_\(streaming.id)")
+                            .frame(maxWidth: .infinity, alignment: streaming.isUser ? .trailing : .leading)
+                            .padding(.top, spacing)
+                        }
 
-                    // Invisible bottom anchor for scroll position tracking
-                    Color.clear
-                        .frame(height: 1)
-                        .id(bottomAnchorID)
+                        // Invisible bottom anchor for scroll position tracking
+                        Color.clear
+                            .frame(height: 1)
+                            .id(bottomAnchorID)
+                    }
+                    .padding()
                 }
-                .padding()
-            }
-            .onChange(of: messages.count) { _, _ in
-                scrollToBottom(proxy)
-                if let lastMessage = messages.last {
-                    // Announce new message for VoiceOver users
-                    let announcement = lastMessage.isUser
-                        ? "Message sent"
-                        : "Claude responded"
-                    UIAccessibility.post(notification: .announcement, argument: announcement)
+                .onChange(of: messages.count) { _, _ in
+                    scrollToBottom(proxy)
+                    if let lastMessage = messages.last {
+                        // Announce new message for VoiceOver users
+                        let announcement = lastMessage.isUser
+                            ? "Message sent"
+                            : "Claude responded"
+                        UIAccessibility.post(notification: .announcement, argument: announcement)
+                    }
                 }
-            }
-            // Auto-scroll when streaming message first appears
-            .onChange(of: streamingMessage != nil) { _, isStreaming in
-                if isStreaming {
+                // Auto-scroll when streaming message first appears
+                .onChange(of: streamingMessage != nil) { _, isStreaming in
+                    if isStreaming {
+                        scrollToBottom(proxy)
+                    }
+                }
+                // Follow streaming updates as they arrive
+                .onChange(of: streamingMessage?.text ?? "") { _, _ in
                     scrollToBottom(proxy)
                 }
-            }
-            // Follow streaming updates as they arrive
-            .onChange(of: streamingMessage?.text ?? "") { _, _ in
-                scrollToBottom(proxy)
             }
         }
         .accessibilityLabel("Conversation transcript")

@@ -76,7 +76,7 @@ struct MarkdownTextView: View {
         for (range, intent) in result.runs[\.inlinePresentationIntent] {
             if let intent = intent, intent.contains(.code) {
                 result[range].font = .system(.body, design: .monospaced)
-                result[range].backgroundColor = Color.secondary.opacity(0.15)
+                result[range].backgroundColor = Color.inlineCodeBackground
             }
         }
         
@@ -112,7 +112,7 @@ struct CodeBlockView: View {
                     .padding(8)
             }
         }
-        .background(Color.secondary.opacity(0.1))
+        .background(Color.codeBlockBackground)
         .cornerRadius(8)
         .accessibilityLabel("Code block: \(code)")
     }

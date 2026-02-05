@@ -75,7 +75,7 @@ struct VoiceWaveformView: View {
         HStack(spacing: barSpacing) {
             ForEach(0..<barCount, id: \.self) { index in
                 RoundedRectangle(cornerRadius: barWidth / 2)
-                    .fill(Color.secondary.opacity(0.3))
+                    .fill(Color.waveformIdleBar)
                     .frame(width: barWidth, height: minBarHeight)
             }
         }

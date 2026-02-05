@@ -35,6 +35,19 @@ extension Color {
     /// Light: #F2F2F7, Dark: #3A3A3C per ticket 19b9d00b
     static let assistantBubbleBackground = Color("AssistantBubbleBackground")
     
+    // MARK: - Code Block Colors
+    
+    /// Code block background (light gray in light mode, darker gray in dark mode)
+    static let codeBlockBackground = Color("CodeBlockBackground")
+    
+    /// Inline code background with transparent overlay
+    static let inlineCodeBackground = Color("InlineCodeBackground")
+    
+    // MARK: - Waveform Colors
+    
+    /// Waveform idle bar color (subtle gray)
+    static let waveformIdleBar = Color("WaveformIdleBar")
+    
     // MARK: - Banner Colors
     
     /// Offline/error banner background (red variant)

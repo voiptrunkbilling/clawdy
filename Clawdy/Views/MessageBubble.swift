@@ -8,7 +8,7 @@ import SwiftUI
 /// - 12pt horizontal, 8pt vertical padding
 /// - User: blue background (#0A84FF), white text, subtle shadow
 /// - Assistant: gray background (#F2F2F7 light / #3A3A3C dark), black text
-/// - Max width: 80% of screen
+/// - Max width: 80% of container width (supports Split View/landscape)
 struct MessageBubble: View {
     let message: TranscriptMessage
     
@@ -23,6 +23,10 @@ struct MessageBubble: View {
     
     /// Whether to show the timestamp - shown at end of message groups
     var showTimestamp: Bool = false
+    
+    /// Container width for calculating max bubble width (supports Split View/landscape)
+    /// If nil, falls back to UIScreen width for backward compatibility
+    var containerWidth: CGFloat? = nil
     
     // MARK: - Constants
     
@@ -65,9 +69,15 @@ struct MessageBubble: View {
                     .accessibilityLabel("Sent \(MessageTimestamp.format(message.timestamp))")
             }
         }
-        .frame(maxWidth: UIScreen.main.bounds.width * maxWidthRatio, alignment: message.isUser ? .trailing : .leading)
+        .frame(maxWidth: maxBubbleWidth, alignment: message.isUser ? .trailing : .leading)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
+    }
+    
+    /// Calculate max bubble width based on container width (supports Split View/landscape)
+    private var maxBubbleWidth: CGFloat {
+        let baseWidth = containerWidth ?? UIScreen.main.bounds.width
+        return baseWidth * maxWidthRatio
     }
     
     // MARK: - Bubble Content

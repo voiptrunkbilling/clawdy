@@ -16,7 +16,7 @@ struct SessionSidebarView: View {
             ZStack(alignment: .leading) {
                 // Dimmed background
                 if sessionManager.isSidebarOpen {
-                    Color.black.opacity(0.5)
+                    Color.overlayBackground
                         .ignoresSafeArea()
                         .transition(.opacity)
                         .onTapGesture {

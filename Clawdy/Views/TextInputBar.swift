@@ -48,14 +48,14 @@ struct TextInputBar: View {
             }
             
             // Input row: [+] [TextField] [Mic] [Send]
-            HStack(alignment: .bottom, spacing: 12) {
-                // Add image button with menu
+            HStack(alignment: .bottom, spacing: 8) {
+                // Add image button with menu - 44pt touch target
                 AddImageButton(
                     isEnabled: canAddMoreImages && isEnabled,
                     onPhotoLibrary: onPhotoLibrary,
                     onCamera: onCamera
                 )
-                .frame(width: 32, height: 32)
+                .frame(minWidth: 44, minHeight: 44)
                 
                 // Text field with rounded border
                 TextField("Message", text: $text, axis: .vertical)
@@ -78,7 +78,7 @@ struct TextInputBar: View {
                     .accessibilityHint(textFieldAccessibilityHint)
                     .accessibilityValue(text.isEmpty ? "Empty" : "\(text.count) characters")
                 
-                // Mic button to switch back to voice mode
+                // Mic button to switch back to voice mode - 44pt touch target
                 Button(action: {
                     // Haptic feedback on mode switch
                     let impactFeedback = UIImpactFeedbackGenerator(style: .light)
@@ -90,17 +90,20 @@ struct TextInputBar: View {
                     Image(systemName: "mic.fill")
                         .font(.headline)
                         .foregroundColor(.blue)
-                        .frame(width: 32, height: 32)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .accessibilityLabel("Voice mode")
                 .accessibilityHint("Double tap to switch to voice input mode")
                 .accessibilityAddTraits(.isButton)
                 
-                // Send button
+                // Send button - 44pt touch target
                 Button(action: sendWithHaptic) {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.title2)
                         .foregroundColor(canSend ? .blue : .gray)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .disabled(!canSend)
                 .accessibilityLabel("Send")
@@ -108,8 +111,8 @@ struct TextInputBar: View {
                 .accessibilityAddTraits(.isButton)
                 .accessibilityRemoveTraits(canSend ? [] : .isButton)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
         }
         .padding(.bottom, 8) // Extra bottom padding for safe area
         .background(Color(.systemBackground))

@@ -22,6 +22,7 @@ struct AddImageButton: View {
     
     var body: some View {
         // Wrap in ZStack to provide stable view hierarchy for Menu
+        // Use 44×44pt minimum touch target for accessibility
         ZStack {
             Menu {
                 Button(action: {
@@ -43,6 +44,8 @@ struct AddImageButton: View {
                 Image(systemName: "plus.circle.fill")
                     .font(.title3)
                     .foregroundColor(isEnabled ? .blue : .gray)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
             }
             .menuOrder(.fixed)
             .disabled(!isEnabled)
