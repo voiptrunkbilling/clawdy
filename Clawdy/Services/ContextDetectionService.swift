@@ -227,6 +227,7 @@ class ContextDetectionService: NSObject, ObservableObject {
         super.init()
         setupLocationManager()
         setupBluetoothManager()
+        setupAudioRouteNotifications()
         loadManualOverride()
         loadGeofenceZones()
         startCarPlayMonitoring()
@@ -239,6 +240,7 @@ class ContextDetectionService: NSObject, ObservableObject {
         if !testMode {
             setupLocationManager()
             setupBluetoothManager()
+            setupAudioRouteNotifications()
             loadManualOverride()
             loadGeofenceZones()
             startCarPlayMonitoring()
@@ -264,9 +266,79 @@ class ContextDetectionService: NSObject, ObservableObject {
         ])
     }
     
+    private func setupAudioRouteNotifications() {
+        // Listen for audio route changes (Bluetooth car connect/disconnect)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(audioRouteDidChange(_:)),
+            name: AVAudioSession.routeChangeNotification,
+            object: nil
+        )
+        
+        // Also refresh on app becoming active (in case route changed while backgrounded)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appDidBecomeActive(_:)),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil
+        )
+    }
+    
+    @objc private func audioRouteDidChange(_ notification: Notification) {
+        // Audio route changed - re-check for car Bluetooth
+        print("[ContextDetection] Audio route changed, checking for car Bluetooth")
+        checkConnectedBluetoothDevices()
+    }
+    
+    @objc private func appDidBecomeActive(_ notification: Notification) {
+        // Refresh Bluetooth detection when app becomes active
+        checkConnectedBluetoothDevices()
+    }
+    
     private func checkLocationAvailability() {
         let status = locationManager?.authorizationStatus ?? .notDetermined
         locationAvailable = status == .authorizedWhenInUse || status == .authorizedAlways
+    }
+    
+    // MARK: - Location Authorization
+    
+    /// Request location authorization and start monitoring when granted.
+    /// Call this from ClawdyApp when entering active state.
+    func requestLocationAuthorizationAndStartMonitoring() {
+        let status = locationManager?.authorizationStatus ?? .notDetermined
+        
+        switch status {
+        case .notDetermined:
+            // Request authorization - delegate callback will start monitoring
+            print("[ContextDetection] Requesting location authorization")
+            locationManager?.requestWhenInUseAuthorization()
+            
+        case .authorizedWhenInUse, .authorizedAlways:
+            // Already authorized - start monitoring
+            print("[ContextDetection] Location authorized, starting monitoring")
+            startLocationMonitoringAfterAuthorization()
+            
+        case .denied, .restricted:
+            print("[ContextDetection] Location authorization denied/restricted")
+            locationAvailable = false
+            
+        @unknown default:
+            break
+        }
+    }
+    
+    /// Start geofence monitoring and request initial location after authorization.
+    private func startLocationMonitoringAfterAuthorization() {
+        locationAvailable = true
+        
+        // Start monitoring all configured geofences
+        for zone in geofenceZones {
+            startMonitoringGeofence(zone)
+        }
+        
+        // Request initial location to seed lastLocation
+        print("[ContextDetection] Requesting initial location")
+        locationManager?.requestLocation()
     }
     
     // MARK: - CarPlay Monitoring
@@ -858,7 +930,17 @@ extension ContextDetectionService: CLLocationManagerDelegate {
     
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         Task { @MainActor in
+            let status = manager.authorizationStatus
             checkLocationAvailability()
+            
+            // Start monitoring when authorization is granted
+            if status == .authorizedWhenInUse || status == .authorizedAlways {
+                print("[ContextDetection] Location authorization granted")
+                startLocationMonitoringAfterAuthorization()
+            } else if status == .denied || status == .restricted {
+                print("[ContextDetection] Location authorization denied")
+                locationAvailable = false
+            }
         }
     }
     

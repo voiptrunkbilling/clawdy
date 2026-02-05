@@ -6,6 +6,7 @@ struct ContentView: View {
     @StateObject private var viewModel = ClawdyViewModel()
     @StateObject private var imagePickerCoordinator = ImagePickerCoordinator()
     @StateObject private var voiceSettings = VoiceSettingsManager.shared
+    @StateObject private var sessionManager = SessionManager.shared
     @State private var showingSettings = false
 
     /// Focus state for text input - used to dismiss/show keyboard on mode switch
@@ -33,6 +34,26 @@ struct ContentView: View {
     private var canChat: Bool {
         viewModel.connectionStatus.canChat
     }
+    
+    /// Setup callbacks between SessionManager and ClawdyViewModel
+    private func setupSessionManagerCallbacks() {
+        // When active session changes, switch the ViewModel to it
+        sessionManager.onSessionChanged = { [viewModel] session in
+            Task {
+                await viewModel.switchSession(session)
+            }
+        }
+        
+        // Save draft state when switching away from a session
+        sessionManager.onSaveDraftState = { [viewModel] in
+            viewModel.getDraftState()
+        }
+        
+        // Restore draft state when switching to a session
+        sessionManager.onRestoreDraftState = { [viewModel] draftState in
+            viewModel.restoreDraftState(draftState)
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -41,7 +62,9 @@ struct ContentView: View {
                 connectionStatus: viewModel.connectionStatus,
                 gatewayFailure: viewModel.gatewayFailure,
                 vpnStatus: viewModel.vpnStatus,
-                onSettingsTap: { showingSettings = true }
+                currentSession: sessionManager.activeSession,
+                onSettingsTap: { showingSettings = true },
+                onSessionTap: { sessionManager.openSidebar() }
             )
 
             // Offline banner (shown when disconnected)
@@ -223,6 +246,13 @@ struct ContentView: View {
                 }
             )
         }
+        .sheet(isPresented: $sessionManager.isCreateSheetPresented) {
+            CreateSessionSheet(sessionManager: sessionManager)
+        }
+        .overlay(alignment: .leading) {
+            // Session sidebar overlay
+            SessionSidebarView(sessionManager: sessionManager)
+        }
         .overlay(alignment: .bottom) {
             // Toast notification overlay
             if let message = viewModel.toastMessage {
@@ -255,6 +285,10 @@ struct ContentView: View {
                     await viewModel.connect()
                 }
             }
+        }
+        .task {
+            // Setup session manager callbacks
+            setupSessionManagerCallbacks()
         }
         .onChange(of: viewModel.inputMode) { _, newMode in
             // Auto-focus text field when switching to text mode
@@ -312,13 +346,26 @@ struct StatusBarView: View {
     let connectionStatus: ConnectionStatus
     let gatewayFailure: GatewayConnectionFailure
     let vpnStatus: VPNStatus
+    let currentSession: Session?
     let onSettingsTap: () -> Void
+    var onSessionTap: (() -> Void)?
     var onProfileSwitch: (() -> Void)?
     
     @State private var showingProfilePicker = false
+    @ObservedObject private var contextService = ContextDetectionService.shared
 
     var body: some View {
         HStack(spacing: 12) {
+            // Session indicator (tappable to open sidebar)
+            if let session = currentSession {
+                SessionIndicatorButton(session: session) {
+                    onSessionTap?()
+                }
+            }
+            
+            // Context mode indicator with manual override menu
+            ContextModeIndicator(contextService: contextService)
+            
             // Gateway connection status indicator (long-press for profile switch)
             ConnectionStatusIndicator(status: connectionStatus)
                 .onLongPressGesture(minimumDuration: 0.5) {
@@ -412,6 +459,90 @@ struct StatusBarView: View {
         if let settingsURL = URL(string: UIApplication.openSettingsURLString),
            UIApplication.shared.canOpenURL(settingsURL) {
             UIApplication.shared.open(settingsURL)
+        }
+    }
+}
+
+// MARK: - Context Mode Indicator
+
+/// Displays the current context mode with a menu for manual override.
+struct ContextModeIndicator: View {
+    @ObservedObject var contextService: ContextDetectionService
+    
+    var body: some View {
+        Menu {
+            // Auto mode (clear override)
+            Button {
+                contextService.clearManualOverride()
+            } label: {
+                HStack {
+                    Label("Auto", systemImage: "sparkles")
+                    if contextService.manualOverride == nil {
+                        Image(systemName: "checkmark")
+                    }
+                }
+            }
+            
+            Divider()
+            
+            // Manual override options
+            ForEach(ContextDetectionService.ContextMode.allCases, id: \.rawValue) { mode in
+                Button {
+                    contextService.setManualOverride(mode)
+                } label: {
+                    HStack {
+                        Label(mode.displayName, systemImage: iconForMode(mode))
+                        if contextService.manualOverride == mode {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: iconForMode(contextService.currentContextMode))
+                    .font(.caption)
+                    .foregroundStyle(colorForMode(contextService.currentContextMode))
+                
+                Text(displayText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                
+                // Manual override indicator
+                if contextService.manualOverride != nil {
+                    Image(systemName: "hand.raised.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 4)
+            .background(Color(.systemGray6))
+            .cornerRadius(6)
+        }
+        .accessibilityLabel("Context mode: \(contextService.currentContextMode.displayName)\(contextService.manualOverride != nil ? ", manual override" : "")")
+        .accessibilityHint("Double tap to change context mode")
+    }
+    
+    private var displayText: String {
+        contextService.currentContextMode.displayName
+    }
+    
+    private func iconForMode(_ mode: ContextDetectionService.ContextMode) -> String {
+        switch mode {
+        case .default: return "globe"
+        case .driving: return "car.fill"
+        case .home: return "house.fill"
+        case .office: return "building.2.fill"
+        }
+    }
+    
+    private func colorForMode(_ mode: ContextDetectionService.ContextMode) -> Color {
+        switch mode {
+        case .default: return .secondary
+        case .driving: return .blue
+        case .home: return .green
+        case .office: return .purple
         }
     }
 }

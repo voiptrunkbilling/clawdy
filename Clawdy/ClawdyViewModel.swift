@@ -369,6 +369,14 @@ class ClawdyViewModel: ObservableObject {
             saveDraftTextInput()
         }
     }
+    
+    // MARK: - Session Properties
+    
+    /// Current active session
+    @Published private(set) var currentSession: Session?
+    
+    /// Session persistence manager for loading messages per session
+    private let sessionPersistence = SessionPersistenceManager.shared
 
     private let speechRecognizer = SpeechRecognizer()
     private let vpnMonitor = VPNStatusMonitor.shared
@@ -1952,6 +1960,52 @@ class ClawdyViewModel: ObservableObject {
             // Show toast feedback
             showToast("Context cleared")
         }
+    }
+    
+    // MARK: - Session Management
+    
+    /// Switch to a different session.
+    /// Updates the chat client session key and loads messages for the new session.
+    /// - Parameter session: The session to switch to
+    func switchSession(_ session: Session) async {
+        // Update session key in chat client
+        await gatewayChatClient.setSessionKey(session.sessionKey)
+        
+        // Update current session
+        currentSession = session
+        
+        // Load messages for this session
+        let sessionMessages = await sessionPersistence.loadMessages(for: session)
+        messages = sessionMessages
+        
+        // Clear streaming state
+        streamingMessage = nil
+        streamingResponseText = ""
+        processingState = .idle
+        
+        print("[ViewModel] Switched to session: \(session.name) with \(sessionMessages.count) messages")
+    }
+    
+    /// Get current draft state for saving when switching sessions.
+    /// - Returns: Current draft state including text input and mode
+    func getDraftState() -> SessionDraftStateWithImages {
+        return SessionDraftStateWithImages(
+            draft: SessionDraftState(
+                textInput: textInput,
+                inputMode: inputMode
+            ),
+            pendingImageIds: pendingImages.map { $0.id }
+        )
+    }
+    
+    /// Restore draft state when switching to a session.
+    /// - Parameter draftState: The draft state to restore
+    func restoreDraftState(_ draftState: SessionDraftStateWithImages) {
+        textInput = draftState.draft.textInput
+        inputMode = draftState.draft.inputMode
+        // Note: Images are not restored as they are session-only
+        // pendingImages would need to be cleared
+        pendingImages.removeAll()
     }
     
     /// Helper to show a toast message that auto-hides after 2 seconds
