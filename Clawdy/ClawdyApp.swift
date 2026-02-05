@@ -216,17 +216,6 @@ struct ClawdyApp: App {
             // Warm up Kokoro when app becomes active (in case settings changed)
             warmUpKokoroIfNeeded()
             
-            // Request location authorization and start monitoring for geofences
-            // This prompts the user for permission if not yet determined
-            Task { @MainActor in
-                ContextDetectionService.shared.requestLocationAuthorizationAndStartMonitoring()
-            }
-            
-            // Fetch geofences and context preferences from gateway after connection
-            Task { @MainActor in
-                await ContextDetectionService.shared.fetchGeofenceZonesFromGateway()
-            }
-            
             // Refresh permission statuses (in case user changed them in Settings)
             permissionManager.refreshAllStatuses()
         @unknown default:

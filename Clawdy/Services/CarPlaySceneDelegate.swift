@@ -30,11 +30,6 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
         // Set the root template
         controller.configureRootTemplate()
         
-        // Notify context detection that CarPlay is connected
-        Task { @MainActor in
-            ContextDetectionService.shared.setCarPlayConnected(true)
-        }
-        
         // Configure audio session for CarPlay
         configureAudioSessionForCarPlay()
     }
@@ -49,11 +44,6 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
         voiceController?.cleanup()
         voiceController = nil
         self.interfaceController = nil
-        
-        // Notify context detection that CarPlay is disconnected
-        Task { @MainActor in
-            ContextDetectionService.shared.setCarPlayConnected(false)
-        }
     }
     
     func templateApplicationScene(

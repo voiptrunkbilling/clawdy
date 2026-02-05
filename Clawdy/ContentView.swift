@@ -352,7 +352,6 @@ struct StatusBarView: View {
     var onProfileSwitch: (() -> Void)?
     
     @State private var showingProfilePicker = false
-    @ObservedObject private var contextService = ContextDetectionService.shared
 
     var body: some View {
         HStack(spacing: 12) {
@@ -362,9 +361,6 @@ struct StatusBarView: View {
                     onSessionTap?()
                 }
             }
-            
-            // Context mode indicator with manual override menu
-            ContextModeIndicator(contextService: contextService)
             
             // Gateway connection status indicator (long-press for profile switch)
             ConnectionStatusIndicator(status: connectionStatus)
@@ -459,90 +455,6 @@ struct StatusBarView: View {
         if let settingsURL = URL(string: UIApplication.openSettingsURLString),
            UIApplication.shared.canOpenURL(settingsURL) {
             UIApplication.shared.open(settingsURL)
-        }
-    }
-}
-
-// MARK: - Context Mode Indicator
-
-/// Displays the current context mode with a menu for manual override.
-struct ContextModeIndicator: View {
-    @ObservedObject var contextService: ContextDetectionService
-    
-    var body: some View {
-        Menu {
-            // Auto mode (clear override)
-            Button {
-                contextService.clearManualOverride()
-            } label: {
-                HStack {
-                    Label("Auto", systemImage: "sparkles")
-                    if contextService.manualOverride == nil {
-                        Image(systemName: "checkmark")
-                    }
-                }
-            }
-            
-            Divider()
-            
-            // Manual override options
-            ForEach(ContextDetectionService.ContextMode.allCases, id: \.rawValue) { mode in
-                Button {
-                    contextService.setManualOverride(mode)
-                } label: {
-                    HStack {
-                        Label(mode.displayName, systemImage: iconForMode(mode))
-                        if contextService.manualOverride == mode {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: iconForMode(contextService.currentContextMode))
-                    .font(.caption)
-                    .foregroundStyle(colorForMode(contextService.currentContextMode))
-                
-                Text(displayText)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                
-                // Manual override indicator
-                if contextService.manualOverride != nil {
-                    Image(systemName: "hand.raised.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                }
-            }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 4)
-            .background(Color(.systemGray6))
-            .cornerRadius(6)
-        }
-        .accessibilityLabel("Context mode: \(contextService.currentContextMode.displayName)\(contextService.manualOverride != nil ? ", manual override" : "")")
-        .accessibilityHint("Double tap to change context mode")
-    }
-    
-    private var displayText: String {
-        contextService.currentContextMode.displayName
-    }
-    
-    private func iconForMode(_ mode: ContextDetectionService.ContextMode) -> String {
-        switch mode {
-        case .default: return "globe"
-        case .driving: return "car.fill"
-        case .home: return "house.fill"
-        case .office: return "building.2.fill"
-        }
-    }
-    
-    private func colorForMode(_ mode: ContextDetectionService.ContextMode) -> Color {
-        switch mode {
-        case .default: return .secondary
-        case .driving: return .blue
-        case .home: return .green
-        case .office: return .purple
         }
     }
 }
@@ -798,25 +710,40 @@ struct TranscriptView: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
-                    ForEach(messages) { message in
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
+                        let previousMessage = index > 0 ? messages[index - 1] : nil
+                        let nextMessage = index < messages.count - 1 ? messages[index + 1] : nil
+                        let spacing = MessageGrouping.spacing(for: message, previous: previousMessage)
+                        let showTimestamp = MessageGrouping.isLastInGroup(current: message, next: nextMessage)
+                        
                         MessageBubble(
                             message: message,
                             imageStore: imageStore,
-                            onImageTap: onImageTap
+                            onImageTap: onImageTap,
+                            showSenderLabel: MessageGrouping.shouldShowTimestamp(for: message, previous: previousMessage),
+                            showTimestamp: showTimestamp
                         )
                         .id(message.id)
+                        .frame(maxWidth: .infinity, alignment: message.isUser ? .trailing : .leading)
+                        .padding(.top, spacing)
                     }
 
                     // Show the streaming message at the end of the list if it exists
-                    // Use "streaming_" prefix to ensure different view identity from finalized messages
                     if let streaming = streamingMessage {
+                        let previousMessage = messages.last
+                        let spacing = MessageGrouping.spacing(for: streaming, previous: previousMessage)
+                        
                         MessageBubble(
                             message: streaming,
                             imageStore: imageStore,
-                            onImageTap: onImageTap
+                            onImageTap: onImageTap,
+                            showSenderLabel: MessageGrouping.shouldShowTimestamp(for: streaming, previous: previousMessage),
+                            showTimestamp: false
                         )
                         .id("streaming_\(streaming.id)")
+                        .frame(maxWidth: .infinity, alignment: streaming.isUser ? .trailing : .leading)
+                        .padding(.top, spacing)
                     }
 
                     // Invisible bottom anchor for scroll position tracking
@@ -855,115 +782,6 @@ struct TranscriptView: View {
         DispatchQueue.main.async {
             proxy.scrollTo(bottomAnchorID, anchor: .bottom)
         }
-    }
-}
-
-struct MessageBubble: View {
-    let message: TranscriptMessage
-
-    /// Image store for resolving image attachment IDs to actual images
-    let imageStore: ImageAttachmentStore
-
-    /// Callback when an image thumbnail is tapped (for Quick Look full-screen view)
-    let onImageTap: (ImageAttachment) -> Void
-
-    var body: some View {
-        VStack(alignment: message.isUser ? .trailing : .leading, spacing: 4) {
-            Text(message.isUser ? "You" : "Clawdy")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .accessibilityHidden(true) // Included in combined label below
-
-            // Message content with optional images and inline tool calls
-            VStack(alignment: .leading, spacing: 8) {
-                // Images first (iMessage style - images appear above text)
-                if !message.imageAttachmentIds.isEmpty {
-                    MessageImageGrid(
-                        attachmentIds: message.imageAttachmentIds,
-                        imageStore: imageStore,
-                        onTap: onImageTap
-                    )
-                }
-
-                // Main message text
-                if !message.text.isEmpty {
-                    Text(message.text)
-                        .foregroundColor(message.isUser ? .onUserBubble : .primary)
-                }
-
-                // Inline tool calls (only for Claude's messages)
-                if !message.isUser && !message.toolCalls.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(message.toolCalls) { toolCall in
-                            CollapsibleToolCallView(toolCall: toolCall)
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(message.isUser ? Color.userBubbleBackground : Color(.secondarySystemBackground))
-            .cornerRadius(16)
-            .overlay(
-                // Pulsing border for streaming messages
-                StreamingBorderOverlay(isStreaming: message.isStreaming)
-            )
-        }
-        .frame(maxWidth: .infinity, alignment: message.isUser ? .trailing : .leading)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityLabel)
-    }
-
-    /// Builds an accessibility label that includes message text, images, and tool call summary
-    private var accessibilityLabel: String {
-        var label = message.isUser ? "You said" : "Claude said"
-
-        // Include image count if present
-        let imageCount = message.imageAttachmentIds.count
-        if imageCount > 0 {
-            label += " with \(imageCount) image\(imageCount == 1 ? "" : "s")"
-        }
-
-        if !message.text.isEmpty {
-            label += ": \(message.text)"
-        }
-
-        if !message.toolCalls.isEmpty {
-            let toolNames = message.toolCalls.map { $0.name }.joined(separator: ", ")
-            let toolCount = message.toolCalls.count
-            label += ". Used \(toolCount) tool\(toolCount == 1 ? "" : "s"): \(toolNames)"
-        }
-
-        return label
-    }
-}
-
-// MARK: - Streaming Border Overlay
-
-/// Pulsing border overlay shown during message streaming.
-/// Uses its own view identity to ensure animation state resets when streaming ends.
-struct StreamingBorderOverlay: View {
-    let isStreaming: Bool
-    @State private var isPulsing = false
-
-    var body: some View {
-        RoundedRectangle(cornerRadius: 16)
-            .stroke(
-                Color.blue.opacity(isStreaming ? (isPulsing ? 0.8 : 0.3) : 0),
-                lineWidth: isStreaming ? 2 : 0
-            )
-            .animation(
-                isStreaming ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .default,
-                value: isPulsing
-            )
-            .onAppear {
-                if isStreaming {
-                    isPulsing = true
-                }
-            }
-            .onChange(of: isStreaming) { _, streaming in
-                isPulsing = streaming
-            }
     }
 }
 

@@ -24,51 +24,25 @@ final class ServiceInitializer {
         
         // Infrastructure services
         _ = OfflineQueueService.shared
-        _ = ContextDetectionService.shared
-        
-        // Set up context detection gateway integration
-        setupContextDetectionCallbacks()
         
         // Set up notification observers for APNs events
         setupAPNsObservers()
         
-        // Set up gateway connection observer for geofence sync
+        // Set up gateway connection observer
         setupGatewayConnectionObserver()
         
         print("[ServiceInitializer] Services initialized")
     }
     
-    /// Set up ContextDetectionService callbacks for gateway integration.
-    private func setupContextDetectionCallbacks() {
-        Task { @MainActor in
-            let contextService = ContextDetectionService.shared
-            
-            // Wire up context mode change callback to send updates to gateway
-            contextService.onContextUpdate = { [weak contextService] mode in
-                guard let _ = contextService else { return }
-                print("[ServiceInitializer] Context mode changed to: \(mode.rawValue)")
-                // The sendContextUpdateToGateway() is already called internally by ContextDetectionService
-                // This callback is for any additional ViewModel-level handling if needed
-            }
-        }
-    }
-    
-    /// Set up observer for gateway connection to sync geofence zones.
+    /// Set up observer for gateway connection.
     private func setupGatewayConnectionObserver() {
-        // Monitor gateway connection status and fetch geofence zones when connected
+        // Monitor gateway connection status
         NotificationCenter.default.addObserver(
             forName: .gatewayDidConnect,
             object: nil,
             queue: .main
         ) { _ in
-            print("[ServiceInitializer] Gateway connected, fetching geofence zones...")
-            Task { @MainActor in
-                // Fetch preferences from gateway (includes geofence zones)
-                await ContextPreferencesManager.shared.fetchFromGateway()
-                
-                // Sync geofence zones to ContextDetectionService
-                await ContextDetectionService.shared.syncGeofenceZonesFromPreferences()
-            }
+            print("[ServiceInitializer] Gateway connected")
         }
     }
     

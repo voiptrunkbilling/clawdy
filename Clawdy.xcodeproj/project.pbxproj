@@ -73,8 +73,7 @@
 		A1000053 /* CalendarServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000053 /* CalendarServiceTests.swift */; };
 		A1000054 /* ContactsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000054 /* ContactsService.swift */; };
 		A1000055 /* ContactsServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000055 /* ContactsServiceTests.swift */; };
-		A1000056 /* ContextDetectionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000056 /* ContextDetectionService.swift */; };
-		A1000057 /* EmailService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000057 /* EmailService.swift */; };
+		A1000057 /* EmailService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000057 /* EmailService.swift */; }
 		A1000058 /* OfflineQueueService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000058 /* OfflineQueueService.swift */; };
 		A1000059 /* PhoneService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000059 /* PhoneService.swift */; };
 		A100005A /* ServiceInitializer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200005A /* ServiceInitializer.swift */; };
@@ -82,8 +81,7 @@
 		A100005C /* TTSTestValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200005C /* TTSTestValidation.swift */; };
 		A100005D /* URLValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200005D /* URLValidator.swift */; };
 		A100005E /* UnifiedTTSManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200005E /* UnifiedTTSManager.swift */; };
-		A100005F /* ContextPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200005F /* ContextPreferences.swift */; };
-		A1000060 /* PhoneServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000060 /* PhoneServiceTests.swift */; };
+		A1000060 /* PhoneServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000060 /* PhoneServiceTests.swift */; }
 		A1000061 /* EmailServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000061 /* EmailServiceTests.swift */; };
 		A1000062 /* LeadCaptureManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000062 /* LeadCaptureManager.swift */; };
 		A1000063 /* LeadCaptureManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000063 /* LeadCaptureManagerTests.swift */; };
@@ -92,8 +90,6 @@
 		A1000066 /* OfflineMessageQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000066 /* OfflineMessageQueue.swift */; };
 		A1000067 /* OfflineQueueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000067 /* OfflineQueueView.swift */; };
 		A1000068 /* OfflineMessageQueueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000068 /* OfflineMessageQueueTests.swift */; };
-		A1000069 /* ContextModeSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000069 /* ContextModeSettingsView.swift */; };
-		A1000070 /* ContextDetectionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000070 /* ContextDetectionServiceTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -176,8 +172,7 @@
 		A2000053 /* CalendarServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarServiceTests.swift; sourceTree = "<group>"; };
 		A2000054 /* ContactsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactsService.swift; sourceTree = "<group>"; };
 		A2000055 /* ContactsServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactsServiceTests.swift; sourceTree = "<group>"; };
-		A2000056 /* ContextDetectionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextDetectionService.swift; sourceTree = "<group>"; };
-		A2000057 /* EmailService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailService.swift; sourceTree = "<group>"; };
+		A2000057 /* EmailService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailService.swift; sourceTree = "<group>"; }
 		A2000058 /* OfflineQueueService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueueService.swift; sourceTree = "<group>"; };
 		A2000059 /* PhoneService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneService.swift; sourceTree = "<group>"; };
 		A200005A /* ServiceInitializer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceInitializer.swift; sourceTree = "<group>"; };
@@ -185,8 +180,7 @@
 		A200005C /* TTSTestValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSTestValidation.swift; sourceTree = "<group>"; };
 		A200005D /* URLValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLValidator.swift; sourceTree = "<group>"; };
 		A200005E /* UnifiedTTSManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedTTSManager.swift; sourceTree = "<group>"; };
-		A200005F /* ContextPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextPreferences.swift; sourceTree = "<group>"; };
-		A2000060 /* PhoneServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneServiceTests.swift; sourceTree = "<group>"; };
+		A2000060 /* PhoneServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneServiceTests.swift; sourceTree = "<group>"; }
 		A2000061 /* EmailServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailServiceTests.swift; sourceTree = "<group>"; };
 		A2000062 /* LeadCaptureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeadCaptureManager.swift; sourceTree = "<group>"; };
 		A2000063 /* LeadCaptureManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeadCaptureManagerTests.swift; sourceTree = "<group>"; };
@@ -195,8 +189,6 @@
 		A2000066 /* OfflineMessageQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineMessageQueue.swift; sourceTree = "<group>"; };
 		A2000067 /* OfflineQueueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueueView.swift; sourceTree = "<group>"; };
 		A2000068 /* OfflineMessageQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineMessageQueueTests.swift; sourceTree = "<group>"; };
-		A2000069 /* ContextModeSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextModeSettingsView.swift; sourceTree = "<group>"; };
-		A2000070 /* ContextDetectionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextDetectionServiceTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -261,7 +253,6 @@
 				A2000046 /* ConnectionTestingService.swift */,
 				A2000054 /* ContactsService.swift */,
 				A2000055 /* ContactsServiceTests.swift */,
-				A2000056 /* ContextDetectionService.swift */,
 				A2000049 /* DeviceAuthStore.swift */,
 				A2000048 /* DeviceIdentityStore.swift */,
 				A2000057 /* EmailService.swift */,
@@ -298,7 +289,6 @@
 				A2000065 /* LeadCaptureUITests.swift */,
 				A2000066 /* OfflineMessageQueue.swift */,
 				A2000068 /* OfflineMessageQueueTests.swift */,
-				A2000070 /* ContextDetectionServiceTests.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -339,7 +329,6 @@
 				A200001C /* ToastView.swift */,
 				A2000064 /* LeadCaptureView.swift */,
 				A2000067 /* OfflineQueueView.swift */,
-				A2000069 /* ContextModeSettingsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -347,7 +336,6 @@
 		A4000007 /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				A200005F /* ContextPreferences.swift */,
 				A200001E /* ImageAttachment.swift */,
 				A2000012 /* VoiceSettings.swift */,
 			);
@@ -515,7 +503,6 @@
 				A1000053 /* CalendarServiceTests.swift in Sources */,
 				A1000054 /* ContactsService.swift in Sources */,
 				A1000055 /* ContactsServiceTests.swift in Sources */,
-				A1000056 /* ContextDetectionService.swift in Sources */,
 				A1000057 /* EmailService.swift in Sources */,
 				A1000058 /* OfflineQueueService.swift in Sources */,
 				A1000059 /* PhoneService.swift in Sources */,
@@ -524,7 +511,6 @@
 				A100005C /* TTSTestValidation.swift in Sources */,
 				A100005D /* URLValidator.swift in Sources */,
 				A100005E /* UnifiedTTSManager.swift in Sources */,
-				A100005F /* ContextPreferences.swift in Sources */,
 				A1000060 /* PhoneServiceTests.swift in Sources */,
 				A1000061 /* EmailServiceTests.swift in Sources */,
 				A1000062 /* LeadCaptureManager.swift in Sources */,
@@ -534,8 +520,6 @@
 				A1000067 /* OfflineQueueView.swift in Sources */,
 				A1000068 /* OfflineMessageQueueTests.swift in Sources */,
 				A1000064 /* LeadCaptureView.swift in Sources */,
-				A1000069 /* ContextModeSettingsView.swift in Sources */,
-				A1000070 /* ContextDetectionServiceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

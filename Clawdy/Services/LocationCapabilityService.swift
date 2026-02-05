@@ -56,6 +56,15 @@ final class LocationCapabilityService: NSObject, CLLocationManagerDelegate {
     
     // MARK: - Public API
     
+    /// Request "when in use" location authorization.
+    /// Call this to trigger the system authorization dialog.
+    func requestAuthorization() {
+        let status = manager.authorizationStatus
+        if status == .notDetermined {
+            manager.requestWhenInUseAuthorization()
+        }
+    }
+    
     /// Get current location with specified parameters.
     /// - Parameter params: Location request parameters
     /// - Returns: LocationGetResult with coordinates and metadata

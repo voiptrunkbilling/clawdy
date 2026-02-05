@@ -67,44 +67,6 @@ final class CarPlayTests: XCTestCase {
         NotificationCenter.default.removeObserver(observer)
     }
     
-    // MARK: - Context Detection Integration Tests
-    
-    func testCarPlayConnectionTriggersContextUpdate() async {
-        // Given
-        let service = ContextDetectionService.shared
-        
-        // When CarPlay connects
-        await MainActor.run {
-            service.setCarPlayConnected(true)
-        }
-        
-        // Then driving mode should be detected
-        await MainActor.run {
-            XCTAssertTrue(service.isCarPlayConnected)
-        }
-        
-        // Cleanup
-        await MainActor.run {
-            service.setCarPlayConnected(false)
-        }
-    }
-    
-    func testCarPlayDisconnectionClearsState() async {
-        // Given
-        let service = ContextDetectionService.shared
-        
-        // When CarPlay connects and disconnects
-        await MainActor.run {
-            service.setCarPlayConnected(true)
-            service.setCarPlayConnected(false)
-        }
-        
-        // Then CarPlay connected should be false
-        await MainActor.run {
-            XCTAssertFalse(service.isCarPlayConnected)
-        }
-    }
-    
     // MARK: - PTT Notification Handler Tests
     
     func testPTTNotificationPostsCorrectly() {

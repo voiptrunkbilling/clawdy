@@ -306,6 +306,19 @@ public struct GatewayEvent: @unchecked Sendable {
     }
 }
 
+/// User context preferences received from another device via the gateway.
+public struct UserContextPreferences: Codable, Sendable {
+    public var deviceId: String
+    public var contextMode: String?
+    public var timestamp: Date?
+    
+    public init(deviceId: String, contextMode: String? = nil, timestamp: Date? = nil) {
+        self.deviceId = deviceId
+        self.contextMode = contextMode
+        self.timestamp = timestamp
+    }
+}
+
 // MARK: - Gateway Response Error
 
 /// Error from a gateway RPC response.

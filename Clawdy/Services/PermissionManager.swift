@@ -390,7 +390,7 @@ class PermissionManager: ObservableObject {
             
         case .location:
             // Location requires special handling via delegate
-            ContextDetectionService.shared.requestLocationAuthorization()
+            LocationCapabilityService.shared.requestAuthorization()
             // Wait a moment for the system dialog
             try? await Task.sleep(nanoseconds: 500_000_000)
             await MainActor.run { refreshLocationStatus() }

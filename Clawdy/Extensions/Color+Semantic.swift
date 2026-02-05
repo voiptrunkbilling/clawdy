@@ -31,6 +31,10 @@ extension Color {
     /// Text color on user message bubbles (white)
     static let onUserBubble = Color("OnUserBubble")
     
+    /// Assistant message bubble background (light gray in light mode, darker gray in dark mode)
+    /// Light: #F2F2F7, Dark: #3A3A3C per ticket 19b9d00b
+    static let assistantBubbleBackground = Color("AssistantBubbleBackground")
+    
     // MARK: - Banner Colors
     
     /// Offline/error banner background (red variant)
