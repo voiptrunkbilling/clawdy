@@ -3,6 +3,7 @@ import Combine
 import SwiftUI
 import UIKit
 import PhotosUI
+import Observation
 
 // MARK: - Models
 
@@ -266,50 +267,60 @@ struct TranscriptMessage: Identifiable, Equatable, Codable {
 // MARK: - View Model
 
 @MainActor
-class ClawdyViewModel: ObservableObject {
-    @Published var isRecording = false
-    @Published var isSpeaking = false
-    @Published var isGeneratingAudio = false
+@Observable
+final class ClawdyViewModel {
+    var isRecording = false
+    var isSpeaking = false
+    var isGeneratingAudio = false
     
     /// Audio amplitude for voice waveform visualization (0.0 - 1.0)
-    @Published var audioAmplitude: CGFloat = 0.0
+    var audioAmplitude: CGFloat = 0.0
     
     /// Push-to-talk button state
-    @Published var pttState: PTTState = .idle
+    var pttState: PTTState = .idle
     
-    @Published var connectionStatus: ConnectionStatus = .disconnected(reason: "Not connected") {
+    var connectionStatus: ConnectionStatus = .disconnected(reason: "Not connected") {
         didSet {
             handleConnectionStatusChange(from: oldValue, to: connectionStatus)
         }
     }
-    @Published var vpnStatus: VPNStatus = .unknown
-    @Published var authTokenMissing: Bool = false
-    @Published var gatewayFailure: GatewayConnectionFailure = .none
-    @Published var messages: [TranscriptMessage] = []
-    @Published var currentTranscription = ""
+    var vpnStatus: VPNStatus = .unknown
+    var authTokenMissing: Bool = false
+    var gatewayFailure: GatewayConnectionFailure = .none
+    var messages: [TranscriptMessage] = []
+    var currentTranscription = ""
     /// Current processing state for UI indicators (thinking, tool use, etc.)
-    @Published var processingState: ProcessingState = .idle
+    var processingState: ProcessingState = .idle {
+        didSet {
+            // Notify CarPlay of processing state change
+            NotificationCenter.default.post(
+                name: Notification.Name("ClawdyProcessingStateChanged"),
+                object: nil,
+                userInfo: ["isProcessing": processingState.isActive]
+            )
+        }
+    }
     
     /// Current streaming response text (updated incrementally)
-    @Published var streamingResponseText = ""
+    var streamingResponseText = ""
     
     /// Current streaming message being received (for live display in transcript)
     /// This is the message currently being streamed from the gateway, before it's finalized and added to messages array
-    @Published var streamingMessage: TranscriptMessage?
+    var streamingMessage: TranscriptMessage?
     
     /// Whether an abort is currently being processed
-    @Published var isAborting = false
+    var isAborting = false
     
     /// Whether a reconnection is currently in progress
-    @Published var isReconnecting = false
+    var isReconnecting = false
     
     /// Toast message to display (auto-hides after 2 seconds)
-    @Published var toastMessage: String? = nil
+    var toastMessage: String? = nil
     
     // MARK: - Camera Flash Properties
     
     /// Whether the camera flash overlay should be shown (for camera.snap feedback)
-    @Published var showingCameraFlash: Bool = false
+    var showingCameraFlash: Bool = false
     
     // MARK: - Image Attachment Properties
     
@@ -317,7 +328,7 @@ class ClawdyViewModel: ObservableObject {
     let imageStore = ImageAttachmentStore.shared
     
     /// Images pending attachment to next message
-    @Published var pendingImages: [ImageAttachment] = []
+    var pendingImages: [ImageAttachment] = []
     
 
     
@@ -327,13 +338,13 @@ class ClawdyViewModel: ObservableObject {
     // MARK: - Quick Look Properties
     
     /// URLs of images to display in Quick Look (full-screen viewer)
-    @Published var quickLookImages: [URL] = []
+    var quickLookImages: [URL] = []
     
     /// Index of the initially selected image in Quick Look
-    @Published var quickLookIndex: Int = 0
+    var quickLookIndex: Int = 0
     
     /// Whether Quick Look full-screen viewer is currently shown
-    @Published var showingQuickLook: Bool = false
+    var showingQuickLook: Bool = false
     
     // MARK: - Offline Queue Properties
     
@@ -341,7 +352,7 @@ class ClawdyViewModel: ObservableObject {
     let offlineMessageQueue = OfflineMessageQueue.shared
     
     /// Whether the offline queue view is showing
-    @Published var showingOfflineQueue: Bool = false
+    var showingOfflineQueue: Bool = false
     
     // MARK: - Lead Capture Properties
     
@@ -349,22 +360,22 @@ class ClawdyViewModel: ObservableObject {
     let leadCaptureManager = LeadCaptureManager.shared
     
     /// Whether the business card camera is showing
-    @Published var showingBusinessCardCamera: Bool = false
+    var showingBusinessCardCamera: Bool = false
     
     /// Captured business card image pending processing
-    @Published var capturedBusinessCardImage: UIImage?
+    var capturedBusinessCardImage: UIImage?
     
     // MARK: - Input Mode Properties
     
     /// Current input mode (voice or text)
-    @Published var inputMode: InputMode = .voice {
+    var inputMode: InputMode = .voice {
         didSet {
             saveInputMode()
         }
     }
     
     /// Text input buffer for text mode
-    @Published var textInput: String = "" {
+    var textInput: String = "" {
         didSet {
             saveDraftTextInput()
         }
@@ -373,7 +384,7 @@ class ClawdyViewModel: ObservableObject {
     // MARK: - Session Properties
     
     /// Current active session
-    @Published private(set) var currentSession: Session?
+    private(set) var currentSession: Session?
     
     /// Session persistence manager for loading messages per session
     private let sessionPersistence = SessionPersistenceManager.shared
@@ -402,7 +413,7 @@ class ClawdyViewModel: ObservableObject {
     
     /// The session that initiated the current streaming request.
     /// Used to route streaming events to the correct session even if user switches sessions.
-    @Published private(set) var activeStreamingSessionId: UUID?
+    private(set) var activeStreamingSessionId: UUID?
     
     /// Suppress gateway finalization after a user-initiated cancel/interrupt
     private var suppressGatewayFinalization = false
@@ -458,17 +469,7 @@ class ClawdyViewModel: ObservableObject {
             }
             .store(in: &cancellables)
         
-        // Observe processing state changes to notify CarPlay
-        $processingState
-            .receive(on: DispatchQueue.main)
-            .sink { state in
-                NotificationCenter.default.post(
-                    name: Notification.Name("ClawdyProcessingStateChanged"),
-                    object: nil,
-                    userInfo: ["isProcessing": state.isActive]
-                )
-            }
-            .store(in: &cancellables)
+        // Note: processingState changes now post notifications via didSet observer
         
         // Bind Kokoro audio generation state
         incrementalTTS.$isGeneratingAudio

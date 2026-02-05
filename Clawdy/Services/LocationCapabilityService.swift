@@ -260,6 +260,7 @@ final class LocationCapabilityService: NSObject, CLLocationManagerDelegate {
             }
             
             // Return first result, cancel the other
+            // swiftlint:disable:next force_unwrapping - Task group always has at least one result here
             let result = try await group.next()!
             group.cancelAll()
             return result

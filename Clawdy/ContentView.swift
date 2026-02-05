@@ -3,7 +3,7 @@ import PhotosUI
 import UIKit
 
 struct ContentView: View {
-    @StateObject private var viewModel = ClawdyViewModel()
+    @State private var viewModel = ClawdyViewModel()
     @StateObject private var imagePickerCoordinator = ImagePickerCoordinator()
     @StateObject private var voiceSettings = VoiceSettingsManager.shared
     @StateObject private var sessionManager = SessionManager.shared

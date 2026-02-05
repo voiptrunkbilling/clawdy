@@ -17,7 +17,7 @@ struct SettingsView: View {
     var onClearContext: (() -> Void)?
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 // Gateway configuration
                 Section {

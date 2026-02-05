@@ -173,35 +173,9 @@ class CarPlayVoiceController: NSObject, ObservableObject {
     func setViewModel(_ viewModel: ClawdyViewModel) {
         self.viewModel = viewModel
         
-        // Observe view model state changes
-        viewModel.$isRecording
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] isRecording in
-                if isRecording {
-                    self?.voiceTemplate?.activateVoiceControlState(withIdentifier: "listening")
-                }
-            }
-            .store(in: &cancellables)
-        
-        viewModel.$processingState
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] state in
-                if state.isActive {
-                    self?.voiceTemplate?.activateVoiceControlState(withIdentifier: "thinking")
-                }
-            }
-            .store(in: &cancellables)
-        
-        viewModel.$isSpeaking
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] isSpeaking in
-                if isSpeaking {
-                    self?.voiceTemplate?.activateVoiceControlState(withIdentifier: "speaking")
-                } else {
-                    self?.voiceTemplate?.activateVoiceControlState(withIdentifier: "idle")
-                }
-            }
-            .store(in: &cancellables)
+        // Note: State observation is handled via notifications in setupSharedViewModelObservers()
+        // since CarPlay runs in a separate scene and @Observable uses the Observation framework
+        // (not Combine's @Published). Notifications are the correct cross-process pattern here.
     }
     
     // MARK: - Voice State Management

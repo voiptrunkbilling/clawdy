@@ -10,7 +10,7 @@ struct OfflineQueueView: View {
     @State private var retryingMessageId: UUID?
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: 0) {
                 // Capacity warning banner
                 if case .nearFull(let messagePercent, let sizePercent) = queue.capacityWarning {

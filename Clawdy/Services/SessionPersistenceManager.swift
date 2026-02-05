@@ -393,9 +393,12 @@ actor SessionPersistenceManager {
     
     // MARK: - Helpers
     
-    /// Documents directory URL
+    /// Documents directory URL (guaranteed to exist on iOS)
     private var documentsDirectory: URL {
-        fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+        guard let dir = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            fatalError("Documents directory not available - this should never happen on iOS")
+        }
+        return dir
     }
     
     /// Create a directory if it doesn't exist

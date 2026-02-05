@@ -181,7 +181,9 @@ class OfflineMessageQueue: ObservableObject {
     
     /// File URL for persistent storage
     private var storageURL: URL {
-        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            fatalError("Documents directory not available - this should never happen on iOS")
+        }
         return docs.appendingPathComponent("offline_queue.json")
     }
     

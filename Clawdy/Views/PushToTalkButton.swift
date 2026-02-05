@@ -12,6 +12,7 @@ enum PTTState {
 }
 
 /// View model for PTT button state management (exposed for testing)
+@MainActor
 class PTTButtonViewModel: ObservableObject {
     /// Time when press started (nil when not pressed)
     @Published var pressStart: Date?

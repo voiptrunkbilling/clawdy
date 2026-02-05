@@ -37,7 +37,9 @@ struct Session: Identifiable, Codable, Equatable {
     
     /// Base directory for all sessions: Documents/sessions/
     static var sessionsDirectoryURL: URL {
-        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        guard let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            fatalError("Documents directory not available - this should never happen on iOS")
+        }
         return documentsPath.appendingPathComponent("sessions", isDirectory: true)
     }
     

@@ -15,7 +15,7 @@ struct CreateSessionSheet: View {
     @State private var showValidationError: Bool = false
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 // Agent selection
                 Section {

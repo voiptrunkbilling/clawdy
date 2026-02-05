@@ -205,7 +205,7 @@ private struct PhrasesGroup: View {
 // MARK: - Preview
 
 #Preview {
-    NavigationView {
+    NavigationStack {
         Form {
             ShortcutsSettingsSection()
         }

@@ -12,7 +12,7 @@ struct LeadCaptureFormView: View {
     @State private var saveErrorMessage = ""
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 // MARK: - Contact Info Section
                 Section {
@@ -275,7 +275,7 @@ struct BusinessCardCaptureView: View {
     @State private var showingCamera = true
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack {
                 if showingCamera {
                     BusinessCardCameraView(capturedImage: $capturedImage)

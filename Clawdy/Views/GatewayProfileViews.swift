@@ -238,7 +238,7 @@ struct ProfileFormView: View {
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section {
                     TextField("Profile Name", text: $name)
@@ -247,6 +247,7 @@ struct ProfileFormView: View {
                     Text("Name")
                 } footer: {
                     Text("A friendly name for this profile (e.g., \"Production\", \"Dev Server\")")
+                }
                 }
                 
                 Section {
@@ -383,7 +384,7 @@ struct ProfileQuickSwitchSheet: View {
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
                 ForEach(profileManager.profiles) { profile in
                     Button {

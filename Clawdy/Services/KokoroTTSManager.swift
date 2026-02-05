@@ -79,6 +79,7 @@ actor KokoroTTSManager {
         var downloadURL: URL {
             switch self {
             case .bf16:
+                // swiftlint:disable:next force_unwrapping - Known valid URL constant
                 return URL(string: "https://huggingface.co/mlx-community/Kokoro-82M-bf16/resolve/main/kokoro-v1_0.safetensors")!
             }
         }
@@ -91,7 +92,9 @@ actor KokoroTTSManager {
     
     /// Directory for storing Kokoro TTS files
     private var kokoroDirectory: URL {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            fatalError("Application Support directory not available - this should never happen on iOS")
+        }
         return appSupport.appendingPathComponent("KokoroTTS", isDirectory: true)
     }
     

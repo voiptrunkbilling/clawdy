@@ -171,7 +171,8 @@ class ContactsService: ObservableObject {
             throw ContactsError.contactNotFound
         }
         
-        // Create mutable copy
+        // Create mutable copy - mutableCopy() on CNContact always returns CNMutableContact
+        // swiftlint:disable:next force_cast
         let mutableContact = contact.mutableCopy() as! CNMutableContact
         
         if let newGivenName = givenName {

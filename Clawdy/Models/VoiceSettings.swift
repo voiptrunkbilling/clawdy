@@ -92,6 +92,7 @@ struct VoiceOption: Identifiable, Hashable {
 }
 
 /// Manager for loading and saving voice settings
+@MainActor
 class VoiceSettingsManager: ObservableObject {
     static let shared = VoiceSettingsManager()
 

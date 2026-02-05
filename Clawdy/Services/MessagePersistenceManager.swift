@@ -41,8 +41,10 @@ actor MessagePersistenceManager {
     // MARK: - Initialization
     
     private init() {
-        // Get Documents directory
-        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        // Get Documents directory (guaranteed to exist on iOS)
+        guard let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            fatalError("Documents directory not available - this should never happen on iOS")
+        }
         storageURL = documentsPath.appendingPathComponent(Self.fileName)
         
         // Configure encoder/decoder with date handling

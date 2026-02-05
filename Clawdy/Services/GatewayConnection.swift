@@ -851,6 +851,7 @@ actor GatewayConnection {
                 )
             }
             
+            // swiftlint:disable:next force_unwrapping - Task group always has at least one result here
             let first = await group.next()!
             group.cancelAll()
             return first
