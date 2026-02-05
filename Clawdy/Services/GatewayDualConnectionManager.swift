@@ -217,6 +217,20 @@ class GatewayDualConnectionManager: ObservableObject {
         setupVPNMonitoring()
     }
     
+    deinit {
+        // Cancel ongoing connection loop tasks
+        operatorConnectLoopTask?.cancel()
+        nodeConnectLoopTask?.cancel()
+        
+        // Cancel all Combine subscriptions
+        cancellables.removeAll()
+        
+        // End any active background task to prevent system warnings
+        if backgroundTaskId != .invalid {
+            UIApplication.shared.endBackgroundTask(backgroundTaskId)
+        }
+    }
+    
     // MARK: - VPN Monitoring
     
     private func setupVPNMonitoring() {

@@ -306,14 +306,14 @@ class LeadCaptureManager: ObservableObject {
         // Check for critical failures - don't clear state if errors occurred so user can retry
         var errorMessages: [String] = []
         
-        if currentLead.shouldCreateContact && actions.contactError != nil {
-            errorMessages.append("Contact: \(actions.contactError!)")
+        if currentLead.shouldCreateContact, let error = actions.contactError {
+            errorMessages.append("Contact: \(error)")
         }
-        if currentLead.shouldScheduleReminder && actions.reminderError != nil {
-            errorMessages.append("Reminder: \(actions.reminderError!)")
+        if currentLead.shouldScheduleReminder, let error = actions.reminderError {
+            errorMessages.append("Reminder: \(error)")
         }
-        if currentLead.shouldSendEmailSummary && actions.emailError != nil {
-            errorMessages.append("Email: \(actions.emailError!)")
+        if currentLead.shouldSendEmailSummary, let error = actions.emailError {
+            errorMessages.append("Email: \(error)")
         }
         if onSendToGateway != nil && !actions.sentToGateway {
             errorMessages.append("Failed to sync with gateway")

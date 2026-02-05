@@ -446,6 +446,11 @@ final class ClawdyViewModel {
             }
         }
     }
+    
+    deinit {
+        // Cancel all Combine subscriptions to prevent retain cycles
+        cancellables.removeAll()
+    }
 
     private func setupBindings() {
         speechRecognizer.$transcribedText

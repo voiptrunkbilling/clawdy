@@ -152,6 +152,17 @@ class IncrementalTTSManager: NSObject, ObservableObject {
         systemSynthesizer.delegate = self
     }
     
+    deinit {
+        // Cancel any ongoing Kokoro speech tasks
+        kokoroSpeechTask?.cancel()
+        
+        // Cancel any prefetch tasks
+        prefetchTask?.cancel()
+        
+        // Stop system synthesizer immediately
+        systemSynthesizer.stopSpeaking(at: .immediate)
+    }
+    
     // MARK: - Public API
     
     /// Append incoming text to the buffer and speak complete sentences.

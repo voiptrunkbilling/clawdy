@@ -822,7 +822,9 @@ actor KokoroTTSManager {
         if audioEngine == nil {
             audioEngine = AVAudioEngine()
             playerNode = AVAudioPlayerNode()
-            audioEngine?.attach(playerNode!)
+            if let engine = audioEngine, let player = playerNode {
+                engine.attach(player)
+            }
         }
         
         guard let engine = audioEngine, let player = playerNode else {
@@ -1087,7 +1089,9 @@ actor KokoroTTSManager {
         if audioEngine == nil {
             audioEngine = AVAudioEngine()
             playerNode = AVAudioPlayerNode()
-            audioEngine?.attach(playerNode!)
+            if let engine = audioEngine, let player = playerNode {
+                engine.attach(player)
+            }
         }
         
         guard let engine = audioEngine, let player = playerNode else {
